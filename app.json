@@ -1,15 +1,16 @@
 {
   "expo": {
-    "name": "time-bank",
-    "slug": "time-bank",
+    "name": "Time Bank Router Fix",
+    "slug": "time-bank-router-fix",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "timebank",
+    "scheme": "timebankfix",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nviol.timebankrouterfix"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,6 +19,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "package": "com.nviol.timebankrouterfix",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },

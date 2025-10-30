@@ -3,13 +3,15 @@ module.exports = function (api) {
   return {
     presets: ["babel-preset-expo"],
     plugins: [
+      // FIX: Removed "module:react-native-dotenv" which conflicts with Expo Router file detection.
+
       [
-        "module:react-native-dotenv",
+        "module-resolver",
         {
-          moduleName: "@env",
-          path: ".env",
-          safe: false,
-          allowUndefined: true,
+          alias: {
+            // Allows imports like "@/services/supabase"
+            "@": "./",
+          },
         },
       ],
     ],
