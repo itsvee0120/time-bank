@@ -1,24 +1,34 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
-  ScrollView,
-} from "react-native";
-import { router } from "expo-router";
+import { useAuth } from "@/services/AuthContext";
+import { useScroll } from "@/services/ScrollContext";
 import { supabase } from "@/services/supabase";
 import { Database } from "@/services/supabaseTypes";
-import { useAuth } from "@/services/AuthContext";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import { Href, router } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 type UserProfile = Database["public"]["Tables"]["users"]["Row"];
 
+const FALLBACK_AVATAR = require("@/assets/images/temp-profile-pic.png");
+
 export default function ProfilePage() {
   const { session } = useAuth();
+  const { scrollY } = useScroll();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarLoaded, setAvatarLoaded] = useState(true);
 
   useEffect(() => {
     if (!session?.user) {
@@ -36,7 +46,7 @@ export default function ProfilePage() {
       setLoading(true);
       const { data, error } = await supabase
         .from("users")
-        .select("*")
+        .select("*") // avatar_url is included in '*'
         .eq("id", session.user.id)
         .maybeSingle(); // ✅ Use maybeSingle() instead of single()
 
@@ -46,6 +56,7 @@ export default function ProfilePage() {
         setProfile(null);
       } else if (data) {
         setProfile(data);
+        setAvatarUrl(data.avatar_url ?? null);
       } else {
         console.log("No profile found for user");
         setProfile(null);
@@ -67,58 +78,110 @@ export default function ProfilePage() {
     }
   };
 
+  const handleNavigate = (path: Href) => {
+    router.push(path);
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color="#9ec5acff" />
       </View>
     );
   }
 
+  const avatarSource =
+    avatarUrl && avatarLoaded ? { uri: avatarUrl } : FALLBACK_AVATAR;
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {profile?.name?.charAt(0).toUpperCase() || "U"}
-          </Text>
-        </View>
-        <Text style={styles.name}>{profile?.name || "User"}</Text>
-        <Text style={styles.email}>
-          {profile?.email || session?.user?.email || "No email"}
-        </Text>
-      </View>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={["#041b0c", "rgba(2,23,9,0.55)", "rgba(2,23,9,0.2)"]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <BlurView
+        intensity={25}
+        tint="dark"
+        style={StyleSheet.absoluteFillObject}
+      />
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account Info</Text>
-
-        <View style={styles.infoCard}>
-          <Text style={styles.label}>Time Balance</Text>
-          <Text style={styles.value}>{profile?.time_balance || 0} hours</Text>
-        </View>
-
-        {profile?.location && (
-          <View style={styles.infoCard}>
-            <Text style={styles.label}>Location</Text>
-            <Text style={styles.value}>{profile.location}</Text>
-          </View>
+      <Animated.ScrollView
+        contentContainerStyle={styles.scrollContent}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
         )}
-
-        {profile?.availability && (
-          <View style={styles.infoCard}>
-            <Text style={styles.label}>Availability</Text>
-            <Text style={styles.value}>{profile.availability}</Text>
-          </View>
-        )}
-      </View>
-
-      <TouchableOpacity
-        style={[styles.button, styles.signOutButton]}
-        onPress={handleSignOut}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.buttonText}>Sign Out</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <View style={styles.header}>
+          <Text style={styles.screenTitle}>My Profile</Text>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => handleNavigate("/(nested)/settings")}
+          >
+            <FontAwesome5 name="cog" size={24} color="#9ec5acff" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.profileCard}>
+          <Image
+            source={avatarSource}
+            style={styles.avatar}
+            onError={() => setAvatarLoaded(false)}
+          />
+          <Text style={styles.name}>{profile?.name || "User"}</Text>
+          <Text style={styles.email}>
+            {profile?.email || session?.user?.email || "No email"}
+          </Text>
+          {profile?.description && (
+            <>
+              <View style={styles.separator} />
+              <Text style={styles.description}>{profile.description}</Text>
+            </>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account Details</Text>
+
+          <View style={styles.infoCard}>
+            <FontAwesome5 name="clock" style={styles.infoIcon} />
+            <Text style={styles.label}>Time Balance</Text>
+            <Text style={styles.value}>{profile?.time_balance || 0} hours</Text>
+          </View>
+
+          {profile?.location && (
+            <View style={styles.infoCard}>
+              <FontAwesome5 name="map-marker-alt" style={styles.infoIcon} />
+              <Text style={styles.label}>Location</Text>
+              <Text style={styles.value}>{profile.location}</Text>
+            </View>
+          )}
+
+          {profile?.availability && (
+            <View style={styles.infoCard}>
+              <FontAwesome5 name="laptop-house" style={styles.infoIcon} />
+              <Text style={styles.label}>Availability</Text>
+              <Text style={styles.value}>{profile.availability}</Text>
+            </View>
+          )}
+        </View>
+
+        <TouchableOpacity
+          style={[styles.button, styles.signOutButton]}
+          onPress={handleSignOut}
+        >
+          <FontAwesome5
+            name="sign-out-alt"
+            size={18}
+            color="#fff"
+            style={{ marginRight: 10 }}
+          />
+          <Text style={styles.buttonText}>Sign Out</Text>
+        </TouchableOpacity>
+      </Animated.ScrollView>
+    </View>
   );
 }
 
@@ -127,74 +190,110 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#111827",
+    backgroundColor: "#041b0c",
   },
   container: {
     flex: 1,
-    backgroundColor: "#111827",
+  },
+  scrollContent: {
+    padding: 20,
+    paddingTop: 80,
+    paddingBottom: 120,
   },
   header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 32,
-    backgroundColor: "#1F2937",
-    borderBottomWidth: 1,
-    borderBottomColor: "#374151",
+    width: "100%",
+    marginBottom: 20,
+    marginTop: -40,
+  },
+  screenTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#9ec5acff",
+  },
+  settingsButton: {
+    padding: 8,
+  },
+  profileCard: {
+    backgroundColor: "rgba(2, 23, 9, 0.65)",
+    borderRadius: 20,
+    padding: 25,
+    alignItems: "center",
+    marginBottom: 30,
+    borderWidth: 1,
+    borderColor: "#ffffff30",
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#4F46E5",
-    justifyContent: "center",
-    alignItems: "center",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     marginBottom: 16,
-  },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#fff",
+    borderWidth: 3,
+    borderColor: "#9ec5acff",
   },
   name: {
     fontSize: 24,
     fontWeight: "bold",
     color: "#fff",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   email: {
-    fontSize: 14,
-    color: "#9CA3AF",
+    fontSize: 16,
+    color: "#ffffffa0",
+  },
+  separator: {
+    height: 1,
+    backgroundColor: "#ffffff30",
+    marginVertical: 20,
+    width: "100%",
+  },
+  description: {
+    fontSize: 16,
+    color: "#ffffff",
+    lineHeight: 24,
+    textAlign: "center",
   },
   section: {
-    padding: 24,
+    width: "100%",
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
+    color: "#b3d4bfff",
     marginBottom: 16,
+    paddingHorizontal: 10,
   },
   infoCard: {
-    backgroundColor: "#1F2937",
-    padding: 16,
-    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(2, 23, 9, 0.55)",
+    padding: 20,
+    borderRadius: 15,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#374151",
+  },
+  infoIcon: {
+    color: "#9ec5acff",
+    fontSize: 16,
+    width: 25,
   },
   label: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    marginBottom: 4,
+    fontSize: 16,
+    color: "#ffffffa0",
+    width: 110,
   },
   value: {
     fontSize: 16,
     color: "#fff",
+    fontWeight: "600",
+    flex: 1,
   },
   button: {
-    marginHorizontal: 24,
-    marginBottom: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    flexDirection: "row",
+    marginTop: 30,
+    paddingVertical: 15,
+    borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
   },

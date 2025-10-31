@@ -1,0 +1,360 @@
+import { useAuth } from "@/services/AuthContext";
+import { supabase } from "@/services/supabase";
+import { Tables } from "@/services/supabaseTypes";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+
+const FALLBACK_AVATAR = require("@/assets/images/temp-profile-pic.png");
+
+// Type for task detail
+// Note: The task object itself contains the 'created_by' UUID, which is task.created_by.
+type TaskDetail = Tables<"tasks"> & {
+  created_by:
+    | (Pick<Tables<"users">, "name" | "avatar_url"> & { id: string })
+    | null;
+  task_attachments: Pick<Tables<"task_attachments">, "file_url">[];
+};
+
+export default function TaskDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { session } = useAuth();
+  const router = useRouter();
+
+  const [task, setTask] = useState<TaskDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isAccepting, setIsAccepting] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+
+    const fetchTask = async () => {
+      setLoading(true);
+
+      // Explicitly select the creator's ID along with name and avatar_url for the check
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(
+          `
+    *,
+    created_by:users!tasks_created_by_fkey(id, name, avatar_url),
+    task_attachments(file_url)
+    `
+        )
+        .eq("id", id)
+        .single();
+
+      if (error) {
+        console.error("Error fetching task details:", error);
+        // Using console log instead of Alert.alert as requested in the initial instructions
+        console.log("Error", "Could not load task details.");
+      } else if (data) {
+        // Cast through unknown to satisfy TypeScript
+        setTask(data as unknown as TaskDetail);
+      }
+
+      setLoading(false);
+    };
+
+    fetchTask();
+  }, [id]);
+
+  const handleAcceptTask = async () => {
+    if (!session?.user || !task) return;
+
+    // IMPROVEMENT: Check if the task is already assigned or not open
+    if (task.status !== "Open" || task.assigned_to) {
+      console.log("Task is not available to be accepted.");
+      Alert.alert(
+        "Task Unavailable",
+        "This task is no longer open or has already been assigned."
+      );
+      return;
+    }
+
+    // FIX/IMPROVEMENT: Use created_by ID for reliable check if user is the creator
+    if (task.created_by?.id === session.user.id) {
+      Alert.alert("Cannot Accept", "You cannot accept your own task.");
+      return;
+    }
+
+    setIsAccepting(true);
+
+    // ACTION: Set assigned_to to the session user's ID and change status
+    const { error } = await supabase
+      .from("tasks")
+      .update({
+        status: "In Progress",
+        assigned_to: session.user.id, // <-- THIS IS THE REQUIRED UPDATE
+      })
+      .eq("id", task.id)
+      .select()
+      .single(); // Ensure only one row is updated and returned
+
+    if (error) {
+      console.error("Error accepting task:", error);
+      Alert.alert("Error", "Failed to accept the task. Please try again.");
+    } else {
+      Alert.alert("Success", "You have accepted the task!", [
+        // This will correctly return the user to the previous screen,
+        // such as the 'Tasks Available' list.
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    }
+
+    setIsAccepting(false);
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#9ec5acff" />
+      </View>
+    );
+  }
+
+  if (!task) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>Task not found.</Text>
+      </View>
+    );
+  }
+
+  const attachment = task.task_attachments[0];
+
+  // Determine if the "Accept Task" button should be visible/enabled
+  const isCreator = task.created_by?.id === session?.user.id;
+  const isAssigned = !!task.assigned_to;
+  const isTaskOpen = task.status === "Open";
+  const showAcceptButton = !isCreator && isTaskOpen && !isAssigned;
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={["#041b0c", "rgba(2,23,9,0.55)", "rgba(2,23,9,0.2)"]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <BlurView
+        intensity={25}
+        tint="dark"
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.card}>
+          <View style={styles.header}>
+            <Text style={styles.title}>{task.title}</Text>
+            <View style={styles.timeBadge}>
+              <FontAwesome5 name="clock" size={14} color="#aaffcbff" />
+              <Text style={styles.timeText}>{task.time_offered} hrs</Text>
+            </View>
+          </View>
+
+          <Text style={styles.date}>
+            Posted on {new Date(task.timestamp).toLocaleDateString()}
+          </Text>
+
+          <View style={styles.separator} />
+
+          <TouchableOpacity
+            style={styles.infoRow}
+            onPress={() =>
+              task.created_by?.id &&
+              router.push(`/(nested)/user/${task.created_by.id}`)
+            }
+            disabled={!task.created_by?.id}
+          >
+            <FontAwesome5 name="user-alt" style={styles.icon} />
+            <Text style={styles.label}>Posted By:</Text>
+            <Image
+              source={
+                task.created_by?.avatar_url
+                  ? { uri: task.created_by.avatar_url }
+                  : FALLBACK_AVATAR
+              }
+              style={styles.avatar}
+            />
+            <Text style={styles.linkText}>
+              {task.created_by?.name ?? "Unknown User"}
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={styles.descriptionLabel}>Description</Text>
+          <Text style={styles.description}>{task.description}</Text>
+
+          <View style={styles.separator} />
+
+          <View style={styles.grid}>
+            <View style={styles.gridItem}>
+              <FontAwesome5 name="map-marker-alt" style={styles.icon} />
+              <Text style={styles.label}>Location</Text>
+              <Text style={styles.value}>
+                {task.location ?? "Not specified"}
+              </Text>
+            </View>
+            <View style={styles.gridItem}>
+              <FontAwesome5 name="laptop-house" style={styles.icon} />
+              <Text style={styles.label}>Availability</Text>
+              <Text style={styles.value}>
+                {task.availability
+                  ? task.availability.charAt(0).toUpperCase() +
+                    task.availability.slice(1)
+                  : "Not specified"}
+              </Text>
+            </View>
+          </View>
+
+          {attachment && (
+            <>
+              <View style={styles.separator} />
+              <View style={styles.infoRow}>
+                <FontAwesome5 name="paperclip" style={styles.icon} />
+                <Text style={styles.label}>Attachment:</Text>
+                <TouchableOpacity
+                  onPress={() => Linking.openURL(attachment.file_url)}
+                >
+                  <Text style={styles.linkText}>View Attachment</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* Conditional rendering of the Accept Button based on the task status and creator */}
+        {showAcceptButton && (
+          <TouchableOpacity
+            style={[styles.button, isAccepting && styles.buttonDisabled]}
+            onPress={handleAcceptTask}
+            disabled={isAccepting}
+          >
+            {isAccepting ? (
+              <ActivityIndicator color="#041b0c" />
+            ) : (
+              <>
+                <FontAwesome5
+                  name="check-circle"
+                  size={20}
+                  color="#041b0c"
+                  style={{ marginRight: 10 }}
+                />
+                <Text style={styles.buttonText}>Accept Task</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {!isTaskOpen && (
+          <Text style={styles.statusMessage}>
+            This task is currently {task.status.toLowerCase()}.
+          </Text>
+        )}
+        {isAssigned && !isCreator && (
+          <Text style={styles.statusMessage}>
+            This task has already been assigned to someone.
+          </Text>
+        )}
+        {isCreator && (
+          <Text style={styles.statusMessage}>
+            This is your task. You cannot accept it.
+          </Text>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+// Styles remain the same as before
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#041b0c",
+  },
+  errorText: { color: "#ffffff", fontSize: 18 },
+  scrollContent: { padding: 20, paddingTop: 120, paddingBottom: 100 },
+  card: {
+    backgroundColor: "rgba(2, 23, 9, 0.65)",
+    padding: 25,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#ffffff30",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#ffffff",
+    flex: 1,
+    marginRight: 10,
+  },
+  timeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(52, 211, 153, 0.2)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  timeText: { color: "#aaffcbff", fontWeight: "bold", marginLeft: 6 },
+  date: { fontSize: 12, color: "#ffffff90", marginTop: 4, marginBottom: 15 },
+  separator: { height: 1, backgroundColor: "#ffffff30", marginVertical: 20 },
+  infoRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  icon: { color: "#9ec5acff", fontSize: 14, width: 20 },
+  label: { fontSize: 14, color: "#ffffffa0", marginRight: 8 },
+  value: { fontSize: 14, color: "#ffffff", flexShrink: 1 },
+  avatar: { width: 24, height: 24, borderRadius: 12, marginRight: 8 },
+  descriptionLabel: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#b3d4bfff",
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  description: { fontSize: 16, color: "#ffffff", lineHeight: 24 },
+  grid: { flexDirection: "row", justifyContent: "space-around" },
+  gridItem: { alignItems: "center", flex: 1 },
+  linkText: {
+    fontSize: 14,
+    color: "rgba(209, 172, 255, 0.8)",
+    textDecorationLine: "underline",
+  },
+  button: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#9ec5acff",
+    padding: 15,
+    borderRadius: 30,
+    marginTop: 30,
+    height: 55,
+  },
+  buttonText: { color: "#041b0c", fontSize: 18, fontWeight: "700" },
+  buttonDisabled: { backgroundColor: "#9ec5ac99" },
+  statusMessage: {
+    marginTop: 30,
+    fontSize: 16,
+    color: "#aaffcbff",
+    textAlign: "center",
+    paddingHorizontal: 20,
+  },
+});

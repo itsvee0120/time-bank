@@ -1,6 +1,6 @@
+import { Session } from "@supabase/supabase-js";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "./supabase";
-import { Session } from "@supabase/supabase-js";
 
 interface AuthContextType {
   session: Session | null;
@@ -32,26 +32,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth
-      .getSession()
-      .then(({ data: { session } }) => {
-        console.log("Initial session:", session ? "Found" : "None");
-        setSession(session);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error("Error getting session:", error);
-        setSession(null);
-        setLoading(false);
-      });
-
-    // Listen for auth changes
+    // onAuthStateChange handles the initial session check and subsequent changes.
+    // This is the single source of truth for the user's auth state.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth event:", event);
-
       // Handle different auth events
       if (event === "SIGNED_IN") {
         console.log("User signed in");
@@ -66,9 +51,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.log("User updated");
         setSession(session);
       } else if (event === "INITIAL_SESSION") {
+        console.log("Initial session:", session ? "Found" : "None");
         setSession(session);
       }
 
+      // Set loading to false only after the initial session has been handled.
       setLoading(false);
     });
 

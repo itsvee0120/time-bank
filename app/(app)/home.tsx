@@ -1,14 +1,16 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, StyleSheet, Image } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 import TimeBalanceCard from "@/components/TimeBalanceCard";
 import { useAuth } from "@/services/AuthContext";
+import { useScroll } from "@/services/ScrollContext";
 import { supabase } from "@/services/supabase";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect, useState } from "react";
+import { Animated, Image, StyleSheet, Text, View } from "react-native";
 const FALLBACK_AVATAR = require("@/assets/images/temp-profile-pic.png");
 
 export default function Home() {
   const { session } = useAuth();
+  const { scrollY } = useScroll();
   const username = session?.user?.user_metadata?.name ?? "User";
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarLoaded, setAvatarLoaded] = useState(true);
@@ -47,8 +49,14 @@ export default function Home() {
         style={StyleSheet.absoluteFillObject}
       />
 
-      <ScrollView
+      <Animated.ScrollView
         contentContainerStyle={styles.scrollViewContent}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
         // ✨ SMOOTHNESS FIXES ✨
         // 1. Increases scroll speed acceleration (especially noticeable on Android)
         decelerationRate="fast"
@@ -96,7 +104,7 @@ export default function Home() {
             5. Report suspicious activity to maintain trust
           </Text>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }
@@ -107,7 +115,7 @@ const styles = StyleSheet.create({
   scrollViewContent: {
     padding: 20,
     alignItems: "center",
-    paddingTop: 60,
+    paddingTop: 50,
     // Padding to clear the fixed tab bar
     paddingBottom: 150,
   },
@@ -125,7 +133,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#9ec5acff",
   },
-  welcome: { fontSize: 40, fontWeight: "700", color: "#9ec5acff" },
+  welcome: { fontSize: 30, fontWeight: "700", color: "#9ec5acff" },
   cardWrapper: { width: "100%", marginVertical: -10 },
   aboutSection: {
     marginTop: 25,

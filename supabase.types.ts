@@ -229,15 +229,6 @@ export type Database = {
         Args: { time_to_add: number; user_id_input: string }
         Returns: undefined
       }
-      report_time: {
-        Args: {
-          creator_id: string
-          hours: number
-          task_id: string
-          worker_id: string
-        }
-        Returns: undefined
-      }
     }
     Enums: {
       [_ in never]: never

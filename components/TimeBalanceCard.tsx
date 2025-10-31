@@ -16,8 +16,8 @@ const TimeBalanceCard: React.FC<TimeBalanceCardProps> = ({ balance }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "rgba(5, 14, 6, 0.45)", // slightly more transparent for glass effect
-    padding: 25,
+    backgroundColor: "rgba(5, 24, 8, 0.49)", // slightly more transparent for glass effect
+    padding: 15,
     borderRadius: 60,
     marginVertical: 10,
     alignItems: "center",
@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
 
     // optional: subtle border for glass effect
     borderWidth: 1,
-    borderColor: "rgba(248, 248, 248, 0.22)",
+    borderColor: "rgba(255, 250, 250, 0.22)",
   },
   label: {
     color: "#ebf3efff",
