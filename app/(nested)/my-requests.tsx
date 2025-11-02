@@ -1,5 +1,6 @@
 import { useAuth } from "@/services/AuthContext";
 import { supabase } from "@/services/supabase";
+import { onTaskCompleted } from "@/services/taskNotifications";
 import { Tables } from "@/services/supabaseTypes";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
@@ -209,6 +210,16 @@ export default function MyRequestsScreen() {
         .select()
         .single();
       if (error) throw error;
+
+      // Find the task to get assigned user's ID for notification
+      const completedTask = requests.find((r) => r.id === taskId);
+      if (completedTask?.assigned_to && completedTask?.created_by) {
+        await onTaskCompleted(
+          completedTask.id,
+          completedTask.assigned_to,
+          completedTask.created_by
+        );
+      }
       Alert.alert("Success", "Task marked as completed!");
       fetchRequests();
     } catch (err) {
