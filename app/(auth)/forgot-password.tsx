@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Link } from "expo-router";
 import { supabase } from "@/services/supabase";
@@ -23,14 +24,38 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(
+      // Step 1: Check if user exists
+      const { data: existingUser, error: userError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("email", email.trim())
+        .maybeSingle(); // <- key fix
+
+      if (userError) {
+        console.error("User lookup error:", userError);
+        Alert.alert(
+          "Error",
+          userError.message || "Failed to check user existence"
+        );
+        setLoading(false);
+        return;
+      }
+
+      if (!existingUser) {
+        Alert.alert("User Not Found", "No account exists with this email.");
+        setLoading(false);
+        return;
+      }
+
+      // Step 2: Send reset password email
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
         {
           redirectTo: "https://reset-password-page-opal.vercel.app",
         }
       );
 
-      if (error) throw error;
+      if (resetError) throw resetError;
 
       Alert.alert(
         "Check Your Email",
@@ -38,6 +63,7 @@ export default function ForgotPasswordScreen() {
       );
       setEmail("");
     } catch (err: any) {
+      console.error("Forgot password error:", err);
       Alert.alert("Error", err.message || "Failed to send reset email");
     } finally {
       setLoading(false);
@@ -68,15 +94,17 @@ export default function ForgotPasswordScreen() {
           onPress={handleForgotPassword}
           disabled={loading}
         >
-          <Text style={styles.buttonText}>
-            {loading ? "Sending..." : "Send Reset Link"}
-          </Text>
+          {loading ? (
+            <ActivityIndicator color="#041b0c" />
+          ) : (
+            <Text style={styles.buttonText}>Send Reset Link</Text>
+          )}
         </TouchableOpacity>
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Remember your password? </Text>
           <Link href="/(auth)/login" asChild>
-            <TouchableOpacity>
+            <TouchableOpacity disabled={loading}>
               <Text style={styles.linkText}>Log In</Text>
             </TouchableOpacity>
           </Link>
@@ -91,20 +119,20 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#041b0c",
-    padding: 20,
+    backgroundColor: "#111827",
+    padding: 24,
   },
   formContainer: {
     width: "100%",
     backgroundColor: "rgba(2, 23, 9, 0.73)",
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 16,
+    padding: 32,
   },
   title: {
     fontSize: 32,
     fontWeight: "bold",
     color: "#fff",
-    marginBottom: 8,
+    marginBottom: 12,
     textAlign: "center",
   },
   subtitle: {
@@ -115,27 +143,26 @@ const styles = StyleSheet.create({
   },
   input: {
     width: "100%",
-    height: 48,
+    height: 52,
     backgroundColor: "rgba(255,255,255,0.1)",
     color: "#fff",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
     fontSize: 16,
   },
   button: {
     width: "100%",
-    height: 48,
+    height: 52,
     backgroundColor: "#9ec5acff",
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 16,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
+  buttonDisabled: { opacity: 0.6 },
   buttonText: {
     color: "#041b0c",
     fontSize: 16,
@@ -144,7 +171,7 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 20,
+    marginTop: 12,
   },
   footerText: {
     color: "#D0D0D0",
@@ -154,5 +181,6 @@ const styles = StyleSheet.create({
     color: "#84d1a2f3",
     fontSize: 14,
     fontWeight: "600",
+    marginLeft: 4,
   },
 });

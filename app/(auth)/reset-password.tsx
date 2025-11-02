@@ -20,18 +20,44 @@ export default function ResetPasswordScreen() {
   const [linkValid, setLinkValid] = useState(false);
 
   const params = useLocalSearchParams();
-  const token = params?.token_hash as string | undefined; // Supabase sends token_hash
+  const token = params?.token_hash as string | undefined;
 
-  // Check if token exists (link is valid)
+  // Step 1: verify recovery token & user existence
   useEffect(() => {
-    if (!token) {
-      Alert.alert("Invalid Link", "No reset token found.");
-      router.replace("/(auth)/login");
-      return;
-    }
-    setLinkValid(true);
+    const verifyToken = async () => {
+      if (!token) {
+        Alert.alert("Invalid Link", "User doesn’t exist.");
+        router.replace("/(auth)/login");
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.auth.verifyOtp({
+          token_hash: token,
+          type: "recovery",
+        });
+
+        if (error) throw error;
+
+        if (!data?.user) {
+          Alert.alert("Invalid Link", "User doesn’t exist.");
+          router.replace("/(auth)/login");
+          return;
+        }
+
+        // Token valid and user exists
+        setLinkValid(true);
+      } catch (err: any) {
+        console.error("Recovery token error:", err);
+        Alert.alert("Invalid Link", "User doesn’t exist or link expired.");
+        router.replace("/(auth)/login");
+      }
+    };
+
+    verifyToken();
   }, [token]);
 
+  // Step 2: update password with the recovery token
   const handleUpdatePassword = async () => {
     if (!newPassword || newPassword.length < 8) {
       Alert.alert(
@@ -41,12 +67,17 @@ export default function ResetPasswordScreen() {
       return;
     }
 
+    if (!token) {
+      Alert.alert("Invalid Link", "User doesn’t exist.");
+      return;
+    }
+
     setLoading(true);
     try {
-      // Supabase automatically uses the recovery session from the deep link
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
+      const { error } = await supabase.auth.updateUser(
+        { password: newPassword },
+        { accessToken: token } as any // <-- TS-safe cast
+      );
 
       if (error) throw error;
 
@@ -54,7 +85,12 @@ export default function ResetPasswordScreen() {
       router.replace("/(auth)/login");
     } catch (err: any) {
       console.error("Password update error:", err);
-      Alert.alert("Error", err.message || "Failed to update password");
+      Alert.alert(
+        "Error",
+        err.message.includes("invalid") || err.message.includes("expired")
+          ? "User doesn’t exist or link expired."
+          : err.message || "Failed to update password"
+      );
     } finally {
       setLoading(false);
     }
@@ -62,9 +98,9 @@ export default function ResetPasswordScreen() {
 
   if (!linkValid) {
     return (
-      <View style={styles.container}>
+      <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#9ec5acff" />
-        <Text style={styles.text}>Validating reset link...</Text>
+        <Text style={styles.loaderText}>Validating reset link...</Text>
       </View>
     );
   }
@@ -72,7 +108,7 @@ export default function ResetPasswordScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
+      style={styles.outerContainer}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -107,53 +143,53 @@ export default function ResetPasswordScreen() {
   );
 }
 
+// Styles
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#041b0c",
+  outerContainer: { flex: 1, backgroundColor: "#111827" },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
+    padding: 24,
   },
-  scrollContent: { flexGrow: 1, justifyContent: "center", width: "100%" },
   formContainer: {
     width: "100%",
-    backgroundColor: "rgba(2,23,9,0.73)",
+    backgroundColor: "rgba(2, 23, 9, 0.73)",
     borderRadius: 12,
-    padding: 20,
+    padding: 32,
   },
   title: {
     fontSize: 32,
     fontWeight: "bold",
     color: "#fff",
-    textAlign: "center",
     marginBottom: 8,
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 16,
     color: "#B0B0B0",
-    textAlign: "center",
     marginBottom: 32,
+    textAlign: "center",
   },
   input: {
     width: "100%",
-    height: 48,
+    height: 52,
     backgroundColor: "rgba(255,255,255,0.1)",
     color: "#fff",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
     fontSize: 16,
   },
   button: {
     width: "100%",
-    height: 48,
+    height: 52,
     backgroundColor: "#9ec5acff",
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 10,
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: {
@@ -161,5 +197,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  text: { marginTop: 20, color: "#9ec5acff", fontSize: 16 },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#041b0c",
+    padding: 24,
+  },
+  loaderText: {
+    marginTop: 20,
+    color: "#9ec5acff",
+    fontSize: 16,
+  },
 });
