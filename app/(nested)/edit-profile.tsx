@@ -207,7 +207,7 @@ export default function EditProfileScreen() {
       Alert.alert(
         "Account Deleted",
         "Your account has been permanently deleted.",
-        [{ text: "OK", onPress: () => router.replace("/(auth)/login") }]
+        [{ text: "OK", onPress: () => router.replace("/login") }]
       );
       setDeleteModalVisible(false);
     } catch (err: any) {
@@ -305,14 +305,13 @@ export default function EditProfileScreen() {
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={availability}
-              onValueChange={(itemValue) => setAvailability(itemValue)}
+              onValueChange={(itemValue: string) => setAvailability(itemValue)}
               style={styles.picker}
               dropdownIconColor="#ffffff"
             >
               <Picker.Item label="Select a mode..." value="" />
               {AVAILABILITY_OPTIONS.map((opt) => (
                 <Picker.Item
-                  key={opt}
                   label={opt.charAt(0).toUpperCase() + opt.slice(1)}
                   value={opt}
                 />

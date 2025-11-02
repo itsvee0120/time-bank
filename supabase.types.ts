@@ -195,7 +195,7 @@ export type Database = {
         Insert: {
           availability?: string | null
           avatar_url?: string | null
-          created_at: string
+          created_at?: string
           description?: string | null
           email?: string | null
           id: string
@@ -227,6 +227,15 @@ export type Database = {
     Functions: {
       add_to_balance: {
         Args: { time_to_add: number; user_id_input: string }
+        Returns: undefined
+      }
+      report_time: {
+        Args: {
+          creator_id: string
+          hours: number
+          task_id: string
+          worker_id: string
+        }
         Returns: undefined
       }
     }

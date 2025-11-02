@@ -3,7 +3,7 @@ import { AuthProvider } from "../services/AuthContext";
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
+    <AuthProvider children={undefined}>
       <Slot />
     </AuthProvider>
   );

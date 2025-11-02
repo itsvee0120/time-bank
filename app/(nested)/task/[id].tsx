@@ -1,6 +1,6 @@
 import { useAuth } from "@/services/AuthContext";
 import { supabase } from "@/services/supabase";
-import { Tables } from "@/services/supabaseTypes";
+import { Database } from "@/services/supabaseTypes";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
@@ -20,13 +20,32 @@ import {
 
 const FALLBACK_AVATAR = require("@/assets/images/temp-profile-pic.png");
 
-// Type for task detail
-// Note: The task object itself contains the 'created_by' UUID, which is task.created_by.
-type TaskDetail = Tables<"tasks"> & {
-  created_by:
-    | (Pick<Tables<"users">, "name" | "avatar_url"> & { id: string })
-    | null;
-  task_attachments: Pick<Tables<"task_attachments">, "file_url">[];
+// Updated TaskDetail type using only tasks + attachments
+type TaskDetail = Database["public"]["Tables"]["tasks"]["Row"] & {
+  task_attachments?: { file_url: string }[];
+  creator_name?: string;
+  creator_avatar_url?: string;
+};
+
+const StatusDisplay: React.FC<{ task: TaskDetail; isCreator: boolean }> = ({
+  task,
+  isCreator,
+}) => {
+  if (task.status !== "Open") {
+    return (
+      <Text style={styles.statusMessage}>
+        This task is currently {task.status?.toLowerCase()}.
+      </Text>
+    );
+  }
+  if (isCreator) {
+    return (
+      <Text style={styles.statusMessage}>
+        This is your task. You cannot accept it.
+      </Text>
+    );
+  }
+  return null;
 };
 
 export default function TaskDetailScreen() {
@@ -39,45 +58,45 @@ export default function TaskDetailScreen() {
   const [isAccepting, setIsAccepting] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
-
-    const fetchTask = async () => {
-      setLoading(true);
-
-      // Explicitly select the creator's ID along with name and avatar_url for the check
-      const { data, error } = await supabase
-        .from("tasks")
-        .select(
-          `
-    *,
-    created_by:users!tasks_created_by_fkey(id, name, avatar_url),
-    task_attachments(file_url)
-    `
-        )
-        .eq("id", id)
-        .single();
-
-      if (error) {
-        console.error("Error fetching task details:", error);
-        // Using console log instead of Alert.alert as requested in the initial instructions
-        console.log("Error", "Could not load task details.");
-      } else if (data) {
-        // Cast through unknown to satisfy TypeScript
-        setTask(data as unknown as TaskDetail);
-      }
-
+    if (!id) {
       setLoading(false);
+      return;
+    }
+
+    const fetchTaskDetails = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("detailed_tasks")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          setTask(data as TaskDetail);
+        } else {
+          setTask(null);
+        }
+      } catch (err: any) {
+        console.error("Error fetching task details:", err);
+        Alert.alert(
+          "Error",
+          "Could not load task details. Please go back and try again."
+        );
+      } finally {
+        setLoading(false);
+      }
     };
 
-    fetchTask();
+    fetchTaskDetails();
   }, [id]);
 
   const handleAcceptTask = async () => {
     if (!session?.user || !task) return;
 
-    // IMPROVEMENT: Check if the task is already assigned or not open
     if (task.status !== "Open" || task.assigned_to) {
-      console.log("Task is not available to be accepted.");
       Alert.alert(
         "Task Unavailable",
         "This task is no longer open or has already been assigned."
@@ -85,32 +104,28 @@ export default function TaskDetailScreen() {
       return;
     }
 
-    // FIX/IMPROVEMENT: Use created_by ID for reliable check if user is the creator
-    if (task.created_by?.id === session.user.id) {
+    if (task.created_by === session.user.id) {
       Alert.alert("Cannot Accept", "You cannot accept your own task.");
       return;
     }
 
     setIsAccepting(true);
 
-    // ACTION: Set assigned_to to the session user's ID and change status
     const { error } = await supabase
       .from("tasks")
       .update({
         status: "In Progress",
-        assigned_to: session.user.id, // <-- THIS IS THE REQUIRED UPDATE
+        assigned_to: session.user.id,
       })
       .eq("id", task.id)
       .select()
-      .single(); // Ensure only one row is updated and returned
+      .single();
 
     if (error) {
       console.error("Error accepting task:", error);
       Alert.alert("Error", "Failed to accept the task. Please try again.");
     } else {
       Alert.alert("Success", "You have accepted the task!", [
-        // This will correctly return the user to the previous screen,
-        // such as the 'Tasks Available' list.
         { text: "OK", onPress: () => router.back() },
       ]);
     }
@@ -134,10 +149,9 @@ export default function TaskDetailScreen() {
     );
   }
 
-  const attachment = task.task_attachments[0];
+  const attachment = task.task_attachments?.[0];
 
-  // Determine if the "Accept Task" button should be visible/enabled
-  const isCreator = task.created_by?.id === session?.user.id;
+  const isCreator = task.created_by === session?.user.id;
   const isAssigned = !!task.assigned_to;
   const isTaskOpen = task.status === "Open";
   const showAcceptButton = !isCreator && isTaskOpen && !isAssigned;
@@ -165,7 +179,8 @@ export default function TaskDetailScreen() {
           </View>
 
           <Text style={styles.date}>
-            Posted on {new Date(task.timestamp).toLocaleDateString()}
+            Posted on{" "}
+            {new Date(task.timestamp ?? Date.now()).toLocaleDateString()}
           </Text>
 
           <View style={styles.separator} />
@@ -173,23 +188,24 @@ export default function TaskDetailScreen() {
           <TouchableOpacity
             style={styles.infoRow}
             onPress={() =>
-              task.created_by?.id &&
-              router.push(`/(nested)/user/${task.created_by.id}`)
+              router.push({
+                pathname: "/user/[id]",
+                params: { id: task.created_by },
+              })
             }
-            disabled={!task.created_by?.id}
           >
             <FontAwesome5 name="user-alt" style={styles.icon} />
             <Text style={styles.label}>Posted By:</Text>
             <Image
               source={
-                task.created_by?.avatar_url
-                  ? { uri: task.created_by.avatar_url }
+                task.creator_avatar_url
+                  ? { uri: task.creator_avatar_url }
                   : FALLBACK_AVATAR
               }
               style={styles.avatar}
             />
             <Text style={styles.linkText}>
-              {task.created_by?.name ?? "Unknown User"}
+              {task.creator_name ?? "Unknown User"}
             </Text>
           </TouchableOpacity>
 
@@ -234,7 +250,6 @@ export default function TaskDetailScreen() {
           )}
         </View>
 
-        {/* Conditional rendering of the Accept Button based on the task status and creator */}
         {showAcceptButton && (
           <TouchableOpacity
             style={[styles.button, isAccepting && styles.buttonDisabled]}
@@ -257,27 +272,12 @@ export default function TaskDetailScreen() {
           </TouchableOpacity>
         )}
 
-        {!isTaskOpen && (
-          <Text style={styles.statusMessage}>
-            This task is currently {task.status.toLowerCase()}.
-          </Text>
-        )}
-        {isAssigned && !isCreator && (
-          <Text style={styles.statusMessage}>
-            This task has already been assigned to someone.
-          </Text>
-        )}
-        {isCreator && (
-          <Text style={styles.statusMessage}>
-            This is your task. You cannot accept it.
-          </Text>
-        )}
+        <StatusDisplay task={task} isCreator={isCreator} />
       </ScrollView>
     </View>
   );
 }
 
-// Styles remain the same as before
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: {

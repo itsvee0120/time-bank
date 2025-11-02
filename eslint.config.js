@@ -1,25 +1,30 @@
 // https://docs.expo.dev/guides/using-eslint/
-const { defineConfig } = require("eslint/config");
 const expoConfig = require("eslint-config-expo/flat");
 
-module.exports = defineConfig([
+/** @type {import('eslint').Linter.FlatConfig[]} */
+module.exports = [
+  // Start with the Expo config
   expoConfig,
+  // Add your custom rules and settings
   {
-    ignores: ["dist/*"],
-  },
-]);
-module.exports = {
-  root: true,
-  extends: ["universe/native", "plugin:react/recommended"],
-  settings: {
-    "import/resolver": {
-      node: {
-        extensions: [".js", ".jsx", ".ts", ".tsx"],
-      },
-      alias: {
-        map: [["@env", "./"]],
-        extensions: [".js", ".jsx", ".ts", ".tsx"],
+    rules: {
+      // You can add or override rules here
+      // e.g., "react/prop-types": "off"
+    },
+    settings: {
+      "import/resolver": {
+        node: {
+          extensions: [".js", ".jsx", ".ts", ".tsx"],
+        },
+        // This alias config helps eslint-plugin-import understand your path aliases
+        alias: {
+          map: [
+            ["@", "./"],
+            ["@env", "./"], // Assuming you might use this for environment variables
+          ],
+          extensions: [".js", ".jsx", ".ts", ".tsx"],
+        },
       },
     },
   },
-};
+];

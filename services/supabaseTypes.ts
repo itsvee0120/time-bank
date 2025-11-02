@@ -1,3 +1,4 @@
+
 export type Json =
   | string
   | number
@@ -73,6 +74,13 @@ export type Database = {
             foreignKeyName: "ledger_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
+            referencedRelation: "detailed_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
             referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
@@ -108,6 +116,13 @@ export type Database = {
           uploaded_by?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "task_attachments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "detailed_tasks"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "task_attachments_task_id_fkey"
             columns: ["task_id"]
@@ -195,7 +210,7 @@ export type Database = {
         Insert: {
           availability?: string | null
           avatar_url?: string | null
-          created_at: string
+          created_at?: string
           description?: string | null
           email?: string | null
           id: string
@@ -222,7 +237,39 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      detailed_tasks: {
+        Row: {
+          assigned_to: string | null
+          availability: string | null
+          created_by: string | null
+          creator_avatar_url: string | null
+          creator_name: string | null
+          description: string | null
+          id: string | null
+          location: string | null
+          status: string | null
+          task_attachments: Json | null
+          time_offered: number | null
+          timestamp: string | null
+          title: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       add_to_balance: {

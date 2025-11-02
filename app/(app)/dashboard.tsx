@@ -219,21 +219,21 @@ export default function Dashboard() {
   // --- Button Navigation Logic ---
   const handleRequestHelp = () => {
     // Navigate to app/(nested)/requests.tsx
-    router.push("/(nested)/requests");
+    router.push("/requests");
   };
   const handleTasksAvailable = () => {
     // Navigate to app/(nested)/tasks-available.tsx
-    router.push("/(nested)/tasks-available");
+    router.push("/tasks-available");
   };
   const handleMyRequests = () => {
-    router.push("/(nested)/my-requests");
+    router.push("/my-requests");
   };
   const handleReportTime = () => {
-    router.push("/(nested)/report-time");
+    router.push("/report-time");
   };
 
   const handleTaskPress = (taskId: string) => {
-    router.push(`/(nested)/${taskId}`);
+    router.push({ pathname: "/task/[id]", params: { id: taskId } });
   };
 
   // Determine avatar source

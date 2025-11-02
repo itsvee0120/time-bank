@@ -5,7 +5,7 @@ import { Animated, StyleSheet, View } from "react-native";
 import TabBarButton from "./TabBarButton";
 
 interface TabBarProps extends BottomTabBarProps {
-  scrollY?: Animated.Value; // 👈 optional shared scroll position
+  scrollY?: Animated.Value;
 }
 
 const TabBar: React.FC<TabBarProps> = ({
@@ -83,7 +83,6 @@ const TabBar: React.FC<TabBarProps> = ({
 
           return (
             <TabBarButton
-              key={route.key}
               onPress={onPress}
               onLongPress={onLongPress}
               isFocused={isFocused}

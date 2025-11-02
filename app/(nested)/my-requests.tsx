@@ -54,7 +54,9 @@ const getStatusStyle = (status: string) => {
   }
 };
 
-const RequestCard: React.FC<{ request: MyRequest }> = ({ request }) => {
+const RequestCard: React.FC<{ request: MyRequest; key?: React.Key }> = ({
+  request,
+}) => {
   const router = useRouter();
   const { backgroundColor, borderColor, textColor } = getStatusStyle(
     request.status
@@ -93,9 +95,13 @@ const RequestCard: React.FC<{ request: MyRequest }> = ({ request }) => {
         {request.assigned_to_user ? (
           <TouchableOpacity
             style={styles.assigneeContainer}
-            onPress={() =>
-              router.push(`/(nested)/user/${request.assigned_to_user?.id}`)
-            }
+            onPress={() => {
+              if (request.assigned_to_user?.id)
+                router.push({
+                  pathname: "/user/[id]",
+                  params: { id: request.assigned_to_user.id },
+                });
+            }}
           >
             <Image
               source={

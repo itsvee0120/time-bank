@@ -143,16 +143,14 @@ export default function ReportTimeScreen() {
               <View style={styles.pickerContainer}>
                 <Picker
                   selectedValue={selectedTask}
-                  onValueChange={(itemValue) => setSelectedTask(itemValue)}
+                  onValueChange={(itemValue: string) =>
+                    setSelectedTask(itemValue)
+                  }
                   style={styles.picker}
                   dropdownIconColor="#ffffff"
                 >
                   {tasks.map((task) => (
-                    <Picker.Item
-                      key={task.id}
-                      label={task.title}
-                      value={task.id}
-                    />
+                    <Picker.Item label={task.title} value={task.id} />
                   ))}
                 </Picker>
               </View>

@@ -72,22 +72,60 @@ export default function SignUpScreen() {
     setLoading(true);
 
     try {
-      // Step 1: Create Supabase Auth user
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: { data: { name: name.trim() } },
-      });
+      // First, check if email already exists
+      const { data: existingUser } = await supabase
+        .from("users")
+        .select("id")
+        .eq("email", email.trim())
+        .single();
 
-      if (error) {
-        if (error.message.includes("already registered")) {
-          Alert.alert("Account Exists", "Email already registered.", [
+      if (existingUser) {
+        Alert.alert(
+          "Account Already Exists",
+          "An account with this email already exists. Please log in instead.",
+          [
             {
               text: "Go to Login",
               onPress: () => router.replace("/(auth)/login"),
             },
             { text: "Cancel", style: "cancel" },
-          ]);
+          ]
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Create Supabase Auth user - trigger will create the users record automatically
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            name: name.trim(),
+          },
+        },
+      });
+
+      if (error) {
+        console.log("Signup error:", error.message);
+        // Check for duplicate email in error message
+        const errorMessage = error.message.toLowerCase();
+        if (
+          errorMessage.includes("already") ||
+          errorMessage.includes("duplicate") ||
+          errorMessage.includes("exists")
+        ) {
+          Alert.alert(
+            "Account Already Exists",
+            "An account with this email already exists. Please log in instead.",
+            [
+              {
+                text: "Go to Login",
+                onPress: () => router.replace("/(auth)/login"),
+              },
+              { text: "Cancel", style: "cancel" },
+            ]
+          );
         } else {
           Alert.alert("Sign Up Error", error.message);
         }
@@ -104,35 +142,24 @@ export default function SignUpScreen() {
         return;
       }
 
-      // Step 2: Insert user record (if signed in instantly)
+      // If session exists, user is logged in immediately (trigger created the profile)
       if (session) {
-        const { error: insertError } = await supabase.from("users").insert({
-          id: user.id,
-          name: name.trim(),
-          email: email.trim(),
-          is_profile_complete: false,
-        });
-
-        if (insertError) {
-          console.error("Users insert error:", insertError);
-          Alert.alert("Error", "Failed to create user record.");
-          setLoading(false);
-          return;
-        }
-
         // Success - AuthLayout will detect the session and redirect to profile-setup
         // Don't call router.replace here
       } else {
-        // Step 3: Email confirmation case - this is fine to navigate
+        // Email confirmation required
         Alert.alert(
           "Check Your Email",
           "A confirmation email has been sent. Please verify your email before logging in.",
           [{ text: "OK", onPress: () => router.replace("/(auth)/login") }]
         );
       }
-    } catch (err) {
-      console.error(err);
-      Alert.alert("Sign Up Error", "Unexpected error occurred.");
+    } catch (err: any) {
+      console.error("Signup catch error:", err);
+      Alert.alert(
+        "Sign Up Error",
+        "An unexpected error occurred. Please try again."
+      );
     } finally {
       setLoading(false);
     }

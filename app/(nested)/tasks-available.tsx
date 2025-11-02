@@ -55,7 +55,7 @@ const TaskCard: React.FC<{
       </TouchableOpacity>
       <Text style={styles.cardDate}>
         {" "}
-        · {new Date(task.timestamp).toLocaleDateString()}
+        {new Date(task.timestamp).toLocaleDateString()}
       </Text>
     </View>
 
@@ -135,8 +135,8 @@ export default function TasksAvailableScreen() {
         availability,
         time_offered,
         timestamp,
-        users!tasks_created_by_fkey(id, name) 
-        `
+        users!tasks_created_by_fkey(id, name)
+      `
       )
       .eq("status", "Open")
       .neq("created_by", session.user.id);
@@ -177,11 +177,14 @@ export default function TasksAvailableScreen() {
     return () => clearTimeout(debounce);
   }, [fetchTasks]);
 
+  // Navigate to a task
   const handleTaskPress = (taskId: string) => {
-    router.push(`/(nested)/${taskId}`);
+    router.push({ pathname: "/task/[id]", params: { id: taskId } });
   };
+
+  // Navigate to a user
   const handleUserPress = (userId: string) => {
-    router.push(`/(nested)/user/${userId}`);
+    router.push({ pathname: "/user/[id]", params: { id: userId } });
   };
 
   const clearFilters = () => {
@@ -196,9 +199,7 @@ export default function TasksAvailableScreen() {
     setIsFilterExpanded(!isFilterExpanded);
   };
 
-  // Ensure minTime does not exceed user's balance
   const handleMinTimeChange = (text: string) => {
-    // Remove non-numeric characters
     const numericValue = text.replace(/[^0-9.]/g, "");
     if (numericValue === "") {
       setMinTime("");
@@ -308,16 +309,16 @@ export default function TasksAvailableScreen() {
             style={{ marginTop: 50 }}
           />
         ) : tasks.length > 0 ? (
-          tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              onCardPress={() => handleTaskPress(task.id)}
-              onUserPress={() =>
-                task.created_by && handleUserPress(task.created_by.id)
-              }
-            />
-          ))
+          tasks.map((task) => {
+            const { created_by } = task;
+            return (
+              <TaskCard
+                task={task}
+                onCardPress={() => handleTaskPress(task.id)}
+                onUserPress={() => created_by && handleUserPress(created_by.id)}
+              />
+            );
+          })
         ) : (
           <Text style={styles.emptyText}>
             No available tasks match your criteria.
@@ -328,7 +329,7 @@ export default function TasksAvailableScreen() {
   );
 }
 
-// Styles unchanged
+// Styles remain unchanged
 const styles = StyleSheet.create({
   container: { flex: 1 },
   fixedHeaderContainer: { paddingTop: 80 },
@@ -340,23 +341,10 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     marginBottom: 20,
   },
-  screenTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#9ec5acff",
-  },
-  balanceContainer: {
-    alignItems: "flex-end",
-  },
-  balanceLabel: {
-    color: "#ffffffa0",
-    fontSize: 12,
-  },
-  balanceValue: {
-    color: "#aaffcbff",
-    fontSize: 18,
-    fontWeight: "700",
-  },
+  screenTitle: { fontSize: 24, fontWeight: "700", color: "#9ec5acff" },
+  balanceContainer: { alignItems: "flex-end" },
+  balanceLabel: { color: "#ffffffa0", fontSize: 12 },
+  balanceValue: { color: "#aaffcbff", fontSize: 18, fontWeight: "700" },
   filterOuterContainer: {
     backgroundColor: "rgba(2, 23, 9, 0.65)",
     borderRadius: 20,
@@ -441,17 +429,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
   },
-  separator: {
-    height: 1,
-    backgroundColor: "#ffffff30",
-    marginVertical: 15,
-  },
+  separator: { height: 1, backgroundColor: "#ffffff30", marginVertical: 15 },
   infoRow: { flexDirection: "row", justifyContent: "space-between" },
-  infoItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
+  infoItem: { flexDirection: "row", alignItems: "center", flex: 1 },
   infoIcon: { color: "#9ec5acff", fontSize: 14, width: 20 },
   infoText: { fontSize: 14, color: "#ffffffa0", flexShrink: 1 },
   linkText: {

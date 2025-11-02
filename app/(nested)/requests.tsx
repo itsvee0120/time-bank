@@ -241,7 +241,9 @@ export default function RequestsScreen() {
               <View style={styles.pickerContainer}>
                 <Picker
                   selectedValue={availability}
-                  onValueChange={(itemValue) => setAvailability(itemValue)}
+                  onValueChange={(itemValue: string) =>
+                    setAvailability(itemValue)
+                  }
                   style={styles.picker}
                   dropdownIconColor="#ffffff"
                 >

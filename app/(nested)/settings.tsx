@@ -59,9 +59,7 @@ export default function SettingsScreen() {
           <SettingsItem
             icon="user-edit"
             label="Edit Profile"
-            onPress={() =>
-              handleNavigate("/(nested)/edit-profile")
-            } /* Placeholder */
+            onPress={() => handleNavigate("/edit-profile")} /* Placeholder */
           />
           <View style={styles.separator} />
           <SettingsItem

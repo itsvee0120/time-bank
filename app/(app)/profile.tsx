@@ -74,7 +74,7 @@ export default function ProfilePage() {
     if (error) {
       Alert.alert("Sign Out Error", error.message);
     } else {
-      router.replace("/(auth)/login");
+      router.replace("/login");
     }
   };
 
@@ -118,7 +118,7 @@ export default function ProfilePage() {
           <Text style={styles.screenTitle}>My Profile</Text>
           <TouchableOpacity
             style={styles.settingsButton}
-            onPress={() => handleNavigate("/(nested)/settings")}
+            onPress={() => handleNavigate("/settings")}
           >
             <FontAwesome5 name="cog" size={24} color="#9ec5acff" />
           </TouchableOpacity>
