@@ -9,10 +9,13 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  ToastAndroid,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -31,6 +34,28 @@ export default function ReportTimeScreen() {
   const [hoursWorked, setHoursWorked] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [newTaskAvailable, setNewTaskAvailable] = useState(false);
+  const pulseAnim = new Animated.Value(1);
+
+  // Animate badge when a new completed task appears
+  useEffect(() => {
+    if (newTaskAvailable) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.3,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }
+  }, [newTaskAvailable]);
 
   useEffect(() => {
     if (!session?.user?.id) {
@@ -38,25 +63,83 @@ export default function ReportTimeScreen() {
       return;
     }
 
-    const fetchInProgressTasks = async () => {
+    const fetchCompletedTasks = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("id, title")
-        .eq("assigned_to", session.user.id)
-        .eq("status", "In Progress");
+      try {
+        // Fetch completed tasks assigned to this user
+        const { data: completedTasks, error: taskError } = await supabase
+          .from("tasks")
+          .select("id, title")
+          .eq("assigned_to", session.user.id)
+          .eq("status", "Completed");
 
-      if (error) {
-        console.error("Error fetching in-progress tasks:", error);
-        Alert.alert("Error", "Could not load your assigned tasks.");
-      } else {
-        setTasks(data);
-        if (data.length > 0) setSelectedTask(data[0].id);
+        if (taskError) throw taskError;
+
+        // Fetch ledger entries for this user (already reported)
+        const { data: ledgerEntries, error: ledgerError } = await supabase
+          .from("ledger")
+          .select("task_id")
+          .eq("user_id", session.user.id);
+
+        if (ledgerError) throw ledgerError;
+
+        const reportedTaskIds = ledgerEntries.map((entry) => entry.task_id);
+
+        // Only show tasks not already in ledger
+        const eligibleTasks = completedTasks.filter(
+          (t) => !reportedTaskIds.includes(t.id)
+        );
+
+        setTasks(eligibleTasks);
+        if (eligibleTasks.length > 0) setSelectedTask(eligibleTasks[0].id);
+      } catch (err) {
+        console.error("Error fetching eligible tasks:", err);
+        Alert.alert(
+          "Error",
+          "Could not load tasks available for time reporting."
+        );
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    fetchInProgressTasks();
+    fetchCompletedTasks();
+
+    // Watch for tasks becoming completed
+    const subscription = supabase
+      .channel("public:tasks")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "tasks",
+          filter: `assigned_to=eq.${session.user.id}`,
+        },
+        (payload) => {
+          if (payload.new.status === "Completed") {
+            setTasks((prev) => {
+              if (prev.some((t) => t.id === payload.new.id)) return prev;
+              const message = `Task "${payload.new.title}" marked complete!`;
+              if (Platform.OS === "android") {
+                ToastAndroid.show(message, ToastAndroid.SHORT);
+              } else {
+                Alert.alert("Task Completed", message);
+              }
+              setNewTaskAvailable(true);
+              return [
+                { id: payload.new.id, title: payload.new.title },
+                ...prev,
+              ];
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(subscription);
+    };
   }, [session?.user?.id]);
 
   const handleSubmit = async () => {
@@ -78,18 +161,31 @@ export default function ReportTimeScreen() {
     setSubmitting(true);
 
     try {
-      // Fetch task creator for report_time RPC
+      // Ensure this task hasn’t already been reported
+      const { data: existing, error: existingError } = await supabase
+        .from("ledger")
+        .select("id")
+        .eq("task_id", selectedTask)
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+      if (existing) {
+        Alert.alert("Already Reported", "You’ve already reported this task.");
+        return;
+      }
+
+      // Get task creator
       const { data: taskData, error: fetchError } = await supabase
         .from("tasks")
         .select("created_by")
         .eq("id", selectedTask)
         .single();
 
-      if (fetchError || !taskData?.created_by) {
+      if (fetchError || !taskData?.created_by)
         throw new Error("Could not find task creator.");
-      }
 
-      // Call the secure RPC to handle everything
+      // Call RPC to record and update balances
       const { error: rpcError } = await supabase.rpc("report_time", {
         task_id: selectedTask,
         worker_id: session.user.id,
@@ -99,14 +195,16 @@ export default function ReportTimeScreen() {
 
       if (rpcError) throw rpcError;
 
+      // Remove from picker instantly
+      setTasks((prev) => prev.filter((t) => t.id !== selectedTask));
+      setSelectedTask("");
+
       Alert.alert(
         "Success",
         "Your time has been reported and balances updated!",
-        // This will correctly return the user to the previous screen,
-        // which is typically the dashboard.
         [{ text: "OK", onPress: () => router.back() }]
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error("Time reporting error:", err);
       Alert.alert("Error", "Failed to report time. Please try again.");
     } finally {
@@ -128,9 +226,22 @@ export default function ReportTimeScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
         <View style={styles.headerContainer}>
-          <Text style={styles.screenTitle}>Report Time Worked</Text>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Text style={styles.screenTitle}>Report Time Worked</Text>
+            {newTaskAvailable && (
+              <Animated.View
+                style={[
+                  styles.badgeContainer,
+                  { transform: [{ scale: pulseAnim }] },
+                ]}
+              >
+                <FontAwesome5 name="bell" size={16} color="#041b0c" />
+              </Animated.View>
+            )}
+          </View>
           <Text style={styles.screenSubtitle}>
-            Select a task you've completed and enter your hours worked.
+            Select a task marked completed by the owner and enter your hours
+            worked.
           </Text>
         </View>
 
@@ -150,7 +261,11 @@ export default function ReportTimeScreen() {
                   dropdownIconColor="#ffffff"
                 >
                   {tasks.map((task) => (
-                    <Picker.Item label={task.title} value={task.id} />
+                    <Picker.Item
+                      label={task.title}
+                      value={task.id}
+                      key={task.id}
+                    />
                   ))}
                 </Picker>
               </View>
@@ -190,7 +305,7 @@ export default function ReportTimeScreen() {
             </>
           ) : (
             <Text style={styles.emptyText}>
-              You have no "In Progress" tasks to report time for.
+              No tasks are available to report time for.
             </Text>
           )}
         </View>
@@ -259,5 +374,16 @@ const styles = StyleSheet.create({
     color: "#ffffffa0",
     textAlign: "center",
     padding: 20,
+  },
+  badgeContainer: {
+    marginLeft: 10,
+    backgroundColor: "#9ec5acff",
+    borderRadius: 20,
+    padding: 5,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#9ec5ac",
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
   },
 });

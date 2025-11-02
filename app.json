@@ -10,18 +10,21 @@
     "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nviol.timebankrouter"
+      "bundleIdentifier": "com.nviol.houreum",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSUserTrackingUsageDescription": "This identifier will be used to deliver personalized ads to you.",
+        "UIBackgroundModes": ["fetch", "remote-notification"]
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/HOUREUM.png",
-        "backgroundImage": "./assets/images/HOUREUM.png",
-        "monochromeImage": "./assets/images/HOUREUM.png"
+        "backgroundColor": "#E6F4FE"
       },
-      "package": "com.nviol.timebankrouterfix",
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "package": "com.nviol.houreum",
+      "permissions": ["NOTIFICATIONS"],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
@@ -42,11 +45,20 @@
         }
       ],
       "expo-sqlite",
-      "expo-font"
+      "expo-font",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": false
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "ba84eb4e-0ca4-4c46-a7da-4585d9af4743"
+      }
     }
   }
 }

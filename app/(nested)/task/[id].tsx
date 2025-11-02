@@ -17,10 +17,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import {
+  onTaskAccepted,
+  onTaskCompleted,
+  scheduleLocalNotification,
+} from "@/services/taskNotifications";
 
 const FALLBACK_AVATAR = require("@/assets/images/temp-profile-pic.png");
 
-// Updated TaskDetail type using only tasks + attachments
 type TaskDetail = Database["public"]["Tables"]["tasks"]["Row"] & {
   task_attachments?: { file_url: string }[];
   creator_name?: string;
@@ -31,21 +35,36 @@ const StatusDisplay: React.FC<{ task: TaskDetail; isCreator: boolean }> = ({
   task,
   isCreator,
 }) => {
-  if (task.status !== "Open") {
-    return (
-      <Text style={styles.statusMessage}>
-        This task is currently {task.status?.toLowerCase()}.
-      </Text>
-    );
-  }
-  if (isCreator) {
-    return (
+  if (task.status === "Open") {
+    return isCreator ? (
       <Text style={styles.statusMessage}>
         This is your task. You cannot accept it.
       </Text>
+    ) : null;
+  }
+
+  if (task.status === "In Progress") {
+    return (
+      <Text style={styles.statusMessage}>
+        Task is currently in progress{" "}
+        {isCreator ? "by a volunteer." : "— please start your work."}
+      </Text>
     );
   }
-  return null;
+
+  if (task.status === "Completed") {
+    return (
+      <Text style={styles.statusMessage}>
+        Task has been marked completed by the owner.
+      </Text>
+    );
+  }
+
+  return (
+    <Text style={styles.statusMessage}>
+      This task is currently {task.status?.toLowerCase()}.
+    </Text>
+  );
 };
 
 export default function TaskDetailScreen() {
@@ -56,7 +75,11 @@ export default function TaskDetailScreen() {
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
 
+  // ----------------------
+  // Fetch task details
+  // ----------------------
   useEffect(() => {
     if (!id) {
       setLoading(false);
@@ -73,12 +96,7 @@ export default function TaskDetailScreen() {
           .single();
 
         if (error) throw error;
-
-        if (data) {
-          setTask(data as TaskDetail);
-        } else {
-          setTask(null);
-        }
+        setTask(data as TaskDetail);
       } catch (err: any) {
         console.error("Error fetching task details:", err);
         Alert.alert(
@@ -93,6 +111,9 @@ export default function TaskDetailScreen() {
     fetchTaskDetails();
   }, [id]);
 
+  // ----------------------
+  // Accept task
+  // ----------------------
   const handleAcceptTask = async () => {
     if (!session?.user || !task) return;
 
@@ -110,27 +131,85 @@ export default function TaskDetailScreen() {
     }
 
     setIsAccepting(true);
+    try {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ status: "In Progress", assigned_to: session.user.id })
+        .eq("id", task.id)
+        .select()
+        .single();
 
-    const { error } = await supabase
-      .from("tasks")
-      .update({
-        status: "In Progress",
-        assigned_to: session.user.id,
-      })
-      .eq("id", task.id)
-      .select()
-      .single();
+      if (error) {
+        console.error("Error accepting task:", error);
+        Alert.alert("Error", "Failed to accept the task. Please try again.");
+        return;
+      }
 
-    if (error) {
-      console.error("Error accepting task:", error);
-      Alert.alert("Error", "Failed to accept the task. Please try again.");
-    } else {
       Alert.alert("Success", "You have accepted the task!", [
         { text: "OK", onPress: () => router.back() },
       ]);
+
+      // ----------------------
+      // Trigger notifications
+      // ----------------------
+      await onTaskAccepted(task.id, session.user.id, task.created_by);
+
+      await scheduleLocalNotification(
+        "Task Reminder ⏰",
+        `Don't forget to start your task: ${task.title}`,
+        3600, // 1 hour later
+        { taskId: task.id }
+      );
+    } finally {
+      setIsAccepting(false);
+    }
+  };
+
+  // ----------------------
+  // Complete task (creator only)
+  // ----------------------
+  const handleCompleteTask = async () => {
+    if (!session?.user || !task) return;
+
+    if (task.created_by !== session.user.id) {
+      Alert.alert(
+        "Cannot Complete",
+        "Only the task owner can mark this task complete."
+      );
+      return;
     }
 
-    setIsAccepting(false);
+    if (task.status !== "In Progress") {
+      Alert.alert("Cannot Complete", "This task is not in progress.");
+      return;
+    }
+
+    setIsCompleting(true);
+    try {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ status: "Completed" })
+        .eq("id", task.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error completing task:", error);
+        Alert.alert("Error", "Failed to mark task as complete.");
+        return;
+      }
+
+      Alert.alert("Task Completed", "You have marked the task as completed!", [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+
+      // Notify the assigned user that the task is now complete
+      if (task.assigned_to) {
+        await onTaskCompleted(task.id, task.assigned_to, task.created_by);
+      }
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   if (loading) {
@@ -150,11 +229,12 @@ export default function TaskDetailScreen() {
   }
 
   const attachment = task.task_attachments?.[0];
-
   const isCreator = task.created_by === session?.user.id;
   const isAssigned = !!task.assigned_to;
   const isTaskOpen = task.status === "Open";
+  const isTaskInProgress = task.status === "In Progress";
   const showAcceptButton = !isCreator && isTaskOpen && !isAssigned;
+  const showCompleteButton = isCreator && isAssigned && isTaskInProgress;
 
   return (
     <View style={styles.container}>
@@ -267,6 +347,28 @@ export default function TaskDetailScreen() {
                   style={{ marginRight: 10 }}
                 />
                 <Text style={styles.buttonText}>Accept Task</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {showCompleteButton && (
+          <TouchableOpacity
+            style={[styles.button, isCompleting && styles.buttonDisabled]}
+            onPress={handleCompleteTask}
+            disabled={isCompleting}
+          >
+            {isCompleting ? (
+              <ActivityIndicator color="#041b0c" />
+            ) : (
+              <>
+                <FontAwesome5
+                  name="flag-checkered"
+                  size={20}
+                  color="#041b0c"
+                  style={{ marginRight: 10 }}
+                />
+                <Text style={styles.buttonText}>Mark Completed</Text>
               </>
             )}
           </TouchableOpacity>

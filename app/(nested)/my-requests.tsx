@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Linking,
   ScrollView,
@@ -17,7 +18,6 @@ import {
   View,
 } from "react-native";
 
-// Define a more specific type for our fetched request data
 type MyRequest = Tables<"tasks"> & {
   assigned_to_user: Pick<Tables<"users">, "id" | "name" | "avatar_url"> | null;
   task_attachments: Pick<Tables<"task_attachments">, "file_url">[];
@@ -54,9 +54,10 @@ const getStatusStyle = (status: string) => {
   }
 };
 
-const RequestCard: React.FC<{ request: MyRequest; key?: React.Key }> = ({
-  request,
-}) => {
+const RequestCard: React.FC<{
+  request: MyRequest;
+  onComplete: (id: string) => void;
+}> = ({ request, onComplete }) => {
   const router = useRouter();
   const { backgroundColor, borderColor, textColor } = getStatusStyle(
     request.status
@@ -85,10 +86,8 @@ const RequestCard: React.FC<{ request: MyRequest; key?: React.Key }> = ({
       <Text style={styles.cardDate}>
         Created on: {new Date(request.timestamp).toLocaleDateString()}
       </Text>
-
       <View style={styles.separator} />
 
-      {/* Assigned To Info */}
       <View style={styles.infoRow}>
         <FontAwesome5 name="user-check" style={styles.infoIcon} />
         <Text style={styles.infoLabel}>Assigned To:</Text>
@@ -118,7 +117,6 @@ const RequestCard: React.FC<{ request: MyRequest; key?: React.Key }> = ({
         )}
       </View>
 
-      {/* Attachment Info */}
       {attachment && (
         <View style={styles.infoRow}>
           <FontAwesome5 name="paperclip" style={styles.infoIcon} />
@@ -130,6 +128,21 @@ const RequestCard: React.FC<{ request: MyRequest; key?: React.Key }> = ({
           </TouchableOpacity>
         </View>
       )}
+
+      {request.status === "In Progress" && (
+        <TouchableOpacity
+          style={styles.completeButton}
+          onPress={() => onComplete(request.id)}
+        >
+          <FontAwesome5
+            name="flag-checkered"
+            size={16}
+            color="#041b0c"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.completeButtonText}>Mark Completed</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -139,16 +152,12 @@ export default function MyRequestsScreen() {
   const [requests, setRequests] = useState<MyRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"current" | "past">("current");
+  const [completingId, setCompletingId] = useState<string | null>(null);
 
-  // Fetch requests from the database
-  useEffect(() => {
-    if (!session?.user?.id) {
-      setLoading(false);
-      return;
-    }
-
-    const fetchRequests = async () => {
-      setLoading(true);
+  const fetchRequests = async () => {
+    if (!session?.user?.id) return;
+    setLoading(true);
+    try {
       const { data, error } = await supabase
         .from("tasks")
         .select(
@@ -160,19 +169,19 @@ export default function MyRequestsScreen() {
         )
         .eq("created_by", session.user.id)
         .order("timestamp", { ascending: false });
-
-      if (error) {
-        console.error("Error fetching requests:", error);
-      } else {
-        setRequests(data as MyRequest[]);
-      }
+      if (error) throw error;
+      setRequests(data as MyRequest[]);
+    } catch (err) {
+      console.error("Error fetching requests:", err);
+    } finally {
       setLoading(false);
-    };
+    }
+  };
 
+  useEffect(() => {
     fetchRequests();
   }, [session?.user?.id]);
 
-  // Memoize filtered lists for performance
   const { currentRequests, pastRequests } = useMemo(() => {
     const current = requests.filter(
       (r) => r.status === "Open" || r.status === "In Progress"
@@ -190,6 +199,26 @@ export default function MyRequestsScreen() {
       ? "You have no open or in-progress requests."
       : "You have no past requests.";
 
+  const handleComplete = async (taskId: string) => {
+    setCompletingId(taskId);
+    try {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ status: "Completed" })
+        .eq("id", taskId)
+        .select()
+        .single();
+      if (error) throw error;
+      Alert.alert("Success", "Task marked as completed!");
+      fetchRequests();
+    } catch (err) {
+      console.error("Error completing task:", err);
+      Alert.alert("Error", "Failed to mark task as completed.");
+    } finally {
+      setCompletingId(null);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -202,7 +231,6 @@ export default function MyRequestsScreen() {
         style={StyleSheet.absoluteFillObject}
       />
 
-      {/* Fixed Header Area */}
       <View style={styles.fixedHeaderContainer}>
         <View style={styles.headerContent}>
           <Text style={styles.screenTitle}>My Requests</Text>
@@ -229,7 +257,6 @@ export default function MyRequestsScreen() {
         </View>
       </View>
 
-      {/* Scrollable Content */}
       <ScrollView contentContainerStyle={styles.listContentContainer}>
         {loading ? (
           <ActivityIndicator
@@ -239,7 +266,11 @@ export default function MyRequestsScreen() {
           />
         ) : requestsToDisplay.length > 0 ? (
           requestsToDisplay.map((request) => (
-            <RequestCard key={request.id} request={request} />
+            <RequestCard
+              key={request.id}
+              request={request}
+              onComplete={handleComplete}
+            />
           ))
         ) : (
           <Text style={styles.emptyText}>{emptyMessage}</Text>
@@ -251,12 +282,8 @@ export default function MyRequestsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  fixedHeaderContainer: {
-    paddingTop: 80, // To clear the custom header
-  },
-  headerContent: {
-    paddingHorizontal: 20,
-  },
+  fixedHeaderContainer: { paddingTop: 80 },
+  headerContent: { paddingHorizontal: 20 },
   screenTitle: {
     fontSize: 24,
     fontWeight: "700",
@@ -278,18 +305,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  activeTab: {
-    backgroundColor: "#9ec5acff",
-  },
-  tabText: {
-    color: "#ffffff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  listContentContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 100, // To clear tab bar
-  },
+  activeTab: { backgroundColor: "#9ec5acff" },
+  tabText: { color: "#ffffff", fontWeight: "600", fontSize: 16 },
+  listContentContainer: { paddingHorizontal: 20, paddingBottom: 100 },
   card: {
     backgroundColor: "rgba(2, 23, 9, 0.65)",
     padding: 20,
@@ -311,9 +329,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 10,
   },
-  headerRight: {
-    alignItems: "flex-end",
-  },
+  headerRight: { alignItems: "flex-end" },
   timeBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -335,31 +351,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "bold",
-  },
+  statusText: { fontSize: 12, fontWeight: "bold" },
   cardDate: { fontSize: 12, color: "#ffffff90", marginBottom: 15 },
-  separator: {
-    height: 1,
-    backgroundColor: "#ffffff30",
-    marginBottom: 15,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
+  separator: { height: 1, backgroundColor: "#ffffff30", marginBottom: 15 },
+  infoRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
   infoIcon: { color: "#9ec5acff", fontSize: 14, width: 20 },
   infoLabel: { fontSize: 14, color: "#ffffffa0", marginRight: 8 },
   infoValue: { fontSize: 14, color: "#ffffff", flexShrink: 1 },
   assigneeContainer: { flexDirection: "row", alignItems: "center" },
-  assigneeAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 8,
-  },
+  assigneeAvatar: { width: 24, height: 24, borderRadius: 12, marginRight: 8 },
   linkText: {
     fontSize: 14,
     color: "rgba(209, 172, 255, 0.8)",
@@ -371,4 +371,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     padding: 20,
   },
+  completeButton: {
+    marginTop: 15,
+    backgroundColor: "#9ec5acff",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 25,
+  },
+  completeButtonText: { color: "#041b0c", fontWeight: "700", fontSize: 14 },
 });

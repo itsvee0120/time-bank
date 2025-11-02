@@ -467,13 +467,14 @@ const styles = StyleSheet.create({
   removeImageButton: {
     position: "absolute",
     top: -10,
-    right: 50,
+    right: -10,
     backgroundColor: "#DC2626",
-    borderRadius: 15,
-    width: 30,
-    height: 30,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 1, // Ensure it's on top
   },
-  removeImageText: { color: "#fff", fontSize: 20, fontWeight: "bold" },
+  removeImageText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
 });

@@ -1,4 +1,3 @@
-
 export type Json =
   | string
   | number
@@ -200,6 +199,7 @@ export type Database = {
           created_at: string
           description: string | null
           email: string | null
+          expo_push_token: string | null
           id: string
           is_profile_complete: boolean
           location: string | null
@@ -213,6 +213,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           email?: string | null
+          expo_push_token?: string | null
           id: string
           is_profile_complete?: boolean
           location?: string | null
@@ -226,6 +227,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           email?: string | null
+          expo_push_token?: string | null
           id?: string
           is_profile_complete?: boolean
           location?: string | null

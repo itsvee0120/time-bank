@@ -1,3 +1,4 @@
+import { TaskCardSkeleton } from "@/components/TaskCardSkeleton";
 import { useAuth } from "@/services/AuthContext";
 import { supabase } from "@/services/supabase";
 import { FontAwesome5 } from "@expo/vector-icons";
@@ -7,9 +8,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   LayoutAnimation,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -98,6 +99,7 @@ export default function TasksAvailableScreen() {
   const [availability, setAvailability] = useState("");
   const [minTime, setMinTime] = useState("");
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Fetch user's current time balance
   useEffect(() => {
@@ -120,15 +122,16 @@ export default function TasksAvailableScreen() {
   }, [session?.user?.id]);
 
   // Fetch tasks from Supabase
-  const fetchTasks = useCallback(async () => {
-    if (!session?.user?.id) return;
+  const fetchTasks = useCallback(
+    async (isRefreshing = false) => {
+      if (!session?.user?.id) return;
 
-    setLoading(true);
+      if (!isRefreshing) setLoading(true);
 
-    let query = supabase
-      .from("tasks")
-      .select(
-        `
+      let query = supabase
+        .from("tasks")
+        .select(
+          `
         id,
         title,
         location,
@@ -137,44 +140,52 @@ export default function TasksAvailableScreen() {
         timestamp,
         users!tasks_created_by_fkey(id, name)
       `
-      )
-      .eq("status", "Open")
-      .neq("created_by", session.user.id);
+        )
+        .eq("status", "Open")
+        .neq("created_by", session.user.id);
 
-    if (keyword.trim()) query = query.ilike("title", `%${keyword.trim()}%`);
-    if (location.trim())
-      query = query.ilike("location", `%${location.trim()}%`);
-    if (availability) query = query.eq("availability", availability);
-    if (minTime && !isNaN(parseFloat(minTime))) {
-      query = query.gte("time_offered", parseFloat(minTime));
-    }
+      if (keyword.trim()) query = query.ilike("title", `%${keyword.trim()}%`);
+      if (location.trim())
+        query = query.ilike("location", `%${location.trim()}%`);
+      if (availability) query = query.eq("availability", availability);
+      if (minTime && !isNaN(parseFloat(minTime))) {
+        query = query.gte("time_offered", parseFloat(minTime));
+      }
 
-    const { data, error } = await query.order("timestamp", {
-      ascending: false,
-    });
+      const { data, error } = await query.order("timestamp", {
+        ascending: false,
+      });
 
-    if (error) {
-      console.error("Error fetching available tasks:", error);
-      setTasks([]);
-    } else if (data) {
-      const mapped: AvailableTask[] = data.map((task: any) => ({
-        id: task.id,
-        title: task.title,
-        location: task.location,
-        availability: task.availability,
-        time_offered: task.time_offered,
-        timestamp: task.timestamp,
-        created_by: task.users ?? null,
-      }));
-      setTasks(mapped);
-    }
+      if (error) {
+        console.error("Error fetching available tasks:", error);
+        setTasks([]);
+      } else if (data) {
+        const mapped: AvailableTask[] = data.map((task: any) => ({
+          id: task.id,
+          title: task.title,
+          location: task.location,
+          availability: task.availability,
+          time_offered: task.time_offered,
+          timestamp: task.timestamp,
+          created_by: task.users ?? null,
+        }));
+        setTasks(mapped);
+      }
 
-    setLoading(false);
-  }, [session?.user?.id, keyword, location, availability, minTime]);
+      if (!isRefreshing) setLoading(false);
+    },
+    [session?.user?.id, keyword, location, availability, minTime]
+  );
 
   useEffect(() => {
     const debounce = setTimeout(() => fetchTasks(), 500);
     return () => clearTimeout(debounce);
+  }, [fetchTasks]);
+
+  // Handle pull-to-refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchTasks(true).finally(() => setRefreshing(false));
   }, [fetchTasks]);
 
   // Navigate to a task
@@ -301,18 +312,29 @@ export default function TasksAvailableScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollableContent}>
-        {loading ? (
-          <ActivityIndicator
-            size="large"
-            color="#9ec5acff"
-            style={{ marginTop: 50 }}
+      <ScrollView
+        contentContainerStyle={styles.scrollableContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#9ec5acff"]} // Spinner color on Android
+            tintColor="#9ec5acff" // Spinner color on iOS
           />
+        }
+      >
+        {loading && !refreshing ? ( // Only show main loader if not refreshing
+          <View>
+            {Array.from({ length: 5 }).map((_, index) => (
+              <TaskCardSkeleton key={index} />
+            ))}
+          </View>
         ) : tasks.length > 0 ? (
           tasks.map((task) => {
             const { created_by } = task;
             return (
               <TaskCard
+                key={task.id}
                 task={task}
                 onCardPress={() => handleTaskPress(task.id)}
                 onUserPress={() => created_by && handleUserPress(created_by.id)}
@@ -399,7 +421,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 5,
   },
   cardHeader: {
     flexDirection: "row",
