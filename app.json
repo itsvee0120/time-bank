@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "Time Bank Router Fix",
-    "slug": "time-bank-router-fix",
+    "name": "HOUREUM Time Bank",
+    "slug": "HOUREUM-Time-Bank",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/HOUREUM.png",
-    "scheme": "timebankfix",
+    "scheme": "timebank",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nviol.timebankrouterfix"
+      "bundleIdentifier": "com.nviol.timebankrouter"
     },
     "android": {
       "adaptiveIcon": {

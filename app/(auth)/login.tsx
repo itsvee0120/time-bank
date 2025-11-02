@@ -9,13 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Image, // Import Image component
+  Image,
 } from "react-native";
 import { Link, router } from "expo-router";
-// Removed LinearGradient import
 import { supabase } from "@/services/supabase";
 
-// Define the path to your logo
 const LOGO_BACKGROUND = require("@/assets/images/login.png");
 
 export default function LoginScreen() {
@@ -49,22 +47,10 @@ export default function LoginScreen() {
         if (error.message.includes("Email not confirmed")) {
           Alert.alert(
             "Email Not Confirmed",
-            "Please confirm your email before logging in.",
-            [
-              {
-                text: "Resend Email",
-                onPress: async () => {
-                  const { error: resendError } = await supabase.auth.resend({
-                    type: "signup",
-                    email: email.trim(),
-                  });
-                  if (resendError) Alert.alert("Error", resendError.message);
-                  else Alert.alert("Email Sent", "Confirmation email resent.");
-                },
-              },
-              { text: "OK", style: "cancel" },
-            ]
+            "Please check your email and click the confirmation link before logging in."
           );
+        } else if (error.message.includes("Invalid login credentials")) {
+          Alert.alert("Login Error", "Invalid email or password");
         } else {
           Alert.alert("Login Error", error.message);
         }
@@ -73,70 +59,11 @@ export default function LoginScreen() {
       }
 
       // Success - AuthLayout will handle navigation
-      // Don't call router.replace here
     } catch (err) {
       console.error("SignIn error:", err);
       Alert.alert("Login Error", "Unexpected error occurred.");
-      setLoading(false);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function resendConfirmationEmail() {
-    if (!email.trim()) {
-      Alert.alert("Error", "Please enter your email address");
-      return;
-    }
-
-    try {
-      const { error } = await supabase.auth.resend({
-        type: "signup",
-        email: email.trim(),
-      });
-
-      if (error) {
-        Alert.alert("Error", error.message);
-      } else {
-        Alert.alert(
-          "Email Sent",
-          "Confirmation email has been resent. Please check your inbox."
-        );
-      }
-    } catch (err) {
-      console.error("Resend error:", err);
-      Alert.alert("Error", "Failed to resend confirmation email");
-    }
-  }
-
-  async function resetPassword() {
-    if (!email.trim()) {
-      Alert.alert(
-        "Enter Email",
-        "Please enter your email address first, then tap 'Forgot Password?' again."
-      );
-      return;
-    }
-
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        email.trim(),
-        {
-          redirectTo: undefined, // Set your deep link URL here
-        }
-      );
-
-      if (error) {
-        Alert.alert("Error", error.message);
-      } else {
-        Alert.alert(
-          "Check Your Email",
-          "Password reset instructions have been sent to your email."
-        );
-      }
-    } catch (err) {
-      console.error("Password reset error:", err);
-      Alert.alert("Error", "Failed to send password reset email");
     }
   }
 
@@ -145,7 +72,7 @@ export default function LoginScreen() {
       <Image
         source={LOGO_BACKGROUND}
         style={styles.backgroundImage}
-        resizeMode="cover" // Ensure the image covers the whole screen
+        resizeMode="cover"
       />
 
       <KeyboardAvoidingView
@@ -184,8 +111,7 @@ export default function LoginScreen() {
 
             <TouchableOpacity
               style={styles.forgotPassword}
-              onPress={resetPassword}
-              disabled={loading}
+              onPress={() => router.push("/(auth)/forgot-password")}
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
@@ -218,7 +144,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   outerContainer: {
     flex: 1,
-    backgroundColor: "#111827", // Fallback background color
+    backgroundColor: "#111827",
   },
   backgroundImage: {
     position: "absolute",
@@ -227,7 +153,6 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
   },
-  // Removed topCircleOverlay and bottomCircleOverlay styles
   keyboardAvoidingView: {
     flex: 1,
   },
@@ -239,7 +164,6 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     width: "100%",
-    // Retain dark semi-transparent overlay for legibility
     backgroundColor: "rgba(2, 23, 9, 0.73)",
     borderRadius: 12,
     padding: 20,
@@ -271,7 +195,8 @@ const styles = StyleSheet.create({
   },
   forgotPassword: {
     alignSelf: "flex-end",
-    marginBottom: 24,
+    marginTop: -10,
+    marginBottom: 16,
   },
   forgotPasswordText: {
     color: "#84d1a2f3",
