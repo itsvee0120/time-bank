@@ -23,6 +23,7 @@ import {
 interface AssignableTask {
   id: string;
   title: string;
+  time_offered: number; // added to include time offered
 }
 
 export default function ReportTimeScreen() {
@@ -69,7 +70,7 @@ export default function ReportTimeScreen() {
         // Fetch completed tasks assigned to this user
         const { data: completedTasks, error: taskError } = await supabase
           .from("tasks")
-          .select("id, title")
+          .select("id, title, time_offered") // include time_offered
           .eq("assigned_to", session.user.id)
           .eq("status", "Completed");
 
@@ -128,7 +129,11 @@ export default function ReportTimeScreen() {
               }
               setNewTaskAvailable(true);
               return [
-                { id: payload.new.id, title: payload.new.title },
+                {
+                  id: payload.new.id,
+                  title: payload.new.title,
+                  time_offered: payload.new.time_offered || 0,
+                },
                 ...prev,
               ];
             });
@@ -262,9 +267,9 @@ export default function ReportTimeScreen() {
                 >
                   {tasks.map((task) => (
                     <Picker.Item
-                      label={task.title}
-                      value={task.id}
                       key={task.id}
+                      label={`${task.title} — ${task.time_offered} hours offered`}
+                      value={task.id}
                     />
                   ))}
                 </Picker>

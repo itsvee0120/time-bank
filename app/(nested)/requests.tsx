@@ -35,7 +35,7 @@ export default function RequestsScreen() {
   const [loading, setLoading] = useState(false);
   const [userBalance, setUserBalance] = useState(0);
 
-  // Fetch user's current time balance to validate the 'timeOffered' field
+  // Fetch user's current time balance
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -55,7 +55,7 @@ export default function RequestsScreen() {
       type: [
         "image/*",
         "application/pdf",
-        "text/plain", // <-- Add this for .txt files
+        "text/plain",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       ],
       copyToCacheDirectory: true,
@@ -73,6 +73,7 @@ export default function RequestsScreen() {
     }
 
     const time = parseFloat(timeOffered);
+
     if (
       !title.trim() ||
       !description.trim() ||
@@ -83,6 +84,7 @@ export default function RequestsScreen() {
       Alert.alert("Missing Fields", "Please fill in all required fields.");
       return;
     }
+
     if (isNaN(time) || time <= 0) {
       Alert.alert(
         "Invalid Time",
@@ -90,18 +92,33 @@ export default function RequestsScreen() {
       );
       return;
     }
-    // Check if the user has enough balance to offer the time
-    if (time > userBalance) {
-      Alert.alert(
-        "Insufficient Balance",
-        `You cannot offer more time than you have. Your current balance is ${userBalance} hours.`
-      );
-      return;
-    }
 
     setLoading(true);
 
     try {
+      // Fetch total time_offered of all user's open tasks
+      const { data: openTasks, error: openTasksError } = await supabase
+        .from("tasks")
+        .select("time_offered")
+        .eq("created_by", session.user.id)
+        .eq("status", "Open");
+
+      if (openTasksError) throw openTasksError;
+
+      const totalOpenTime =
+        openTasks?.reduce((sum, t) => sum + (t.time_offered ?? 0), 0) ?? 0;
+      const availableTime = userBalance - totalOpenTime;
+
+      if (time > availableTime) {
+        Alert.alert(
+          "Insufficient Balance",
+          `You cannot offer more time than your available balance. You have ${availableTime} hours remaining considering your pending tasks.`
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Insert the new task
       const { data: taskData, error: taskError } = await supabase
         .from("tasks")
         .insert({
@@ -120,6 +137,7 @@ export default function RequestsScreen() {
       if (taskError) throw taskError;
       const taskId = taskData.id;
 
+      // Handle attachment if provided
       if (attachment) {
         try {
           const fileExt = attachment.uri.split(".").pop();
@@ -142,6 +160,7 @@ export default function RequestsScreen() {
           const { data: urlData } = supabase.storage
             .from("task_attachments")
             .getPublicUrl(filePath);
+
           const attachmentUrl = urlData.publicUrl;
 
           const { error: attachmentError } = await supabase
@@ -155,20 +174,18 @@ export default function RequestsScreen() {
 
           if (attachmentError) throw attachmentError;
         } catch (uploadErr: any) {
-          // Catch network errors specifically from the upload process
           console.error("File upload error:", uploadErr);
           Alert.alert(
             "Upload Failed",
             "Could not upload the attachment. Please check your network connection and try again."
           );
-          // Stop execution and loading state, but don't crash
           setLoading(false);
           return;
         }
       }
 
       Alert.alert("Success", "Your request has been submitted.", [
-        { text: "OK", onPress: () => router.back() }, // Use router.back() to return to the previous screen
+        { text: "OK", onPress: () => router.back() },
       ]);
     } catch (err: any) {
       console.error("Submission error:", err);
@@ -474,7 +491,7 @@ const styles = StyleSheet.create({
     height: 24,
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 1, // Ensure it's on top
+    zIndex: 1,
   },
   removeImageText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
 });

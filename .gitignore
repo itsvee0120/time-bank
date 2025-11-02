@@ -1,3 +1,9 @@
+# Environment variables
+.env
+
+# Google Services
+google-services.json
+
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
 # dependencies
@@ -41,6 +47,6 @@ yarn-error.*
 /ios
 /android
 
-# Firebase
-google-services.json
-
+# OS-specific files
+.DS_Store
+Thumbs.dbandroid/app/google-services.json
