@@ -7,6 +7,9 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from "react-native";
 import { Link } from "expo-router";
 import { supabase } from "@/services/supabase";
@@ -24,30 +27,21 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
 
     try {
-      // Step 1: Check if user exists
+      // Check if user exists
       const { data: existingUser, error: userError } = await supabase
         .from("users")
         .select("id")
         .eq("email", email.trim())
-        .maybeSingle(); // <- key fix
+        .maybeSingle();
 
-      if (userError) {
-        console.error("User lookup error:", userError);
-        Alert.alert(
-          "Error",
-          userError.message || "Failed to check user existence"
-        );
-        setLoading(false);
-        return;
-      }
-
+      if (userError) throw userError;
       if (!existingUser) {
         Alert.alert("User Not Found", "No account exists with this email.");
         setLoading(false);
         return;
       }
 
-      // Step 2: Send reset password email
+      // Send reset password email
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
         {
@@ -71,55 +65,61 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.formContainer}>
-        <Text style={styles.title}>Forgot Password</Text>
-        <Text style={styles.subtitle}>
-          Enter your email to receive a password reset link
-        </Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#111827" }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.formContainer}>
+          <Text style={styles.title}>Forgot Password</Text>
+          <Text style={styles.subtitle}>
+            Enter your email to receive a password reset link
+          </Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          placeholderTextColor="#B0B0B0"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          editable={!loading}
-        />
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            placeholderTextColor="#B0B0B0"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            editable={!loading}
+          />
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleForgotPassword}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#041b0c" />
-          ) : (
-            <Text style={styles.buttonText}>Send Reset Link</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleForgotPassword}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#041b0c" />
+            ) : (
+              <Text style={styles.buttonText}>Send Reset Link</Text>
+            )}
+          </TouchableOpacity>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Remember your password? </Text>
-          <Link href="/(auth)/login" asChild>
-            <TouchableOpacity disabled={loading}>
-              <Text style={styles.linkText}>Log In</Text>
-            </TouchableOpacity>
-          </Link>
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Remember your password? </Text>
+            <Link href="/(auth)/login" asChild>
+              <TouchableOpacity disabled={loading}>
+                <Text style={styles.linkText}>Log In</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#111827",
     padding: 24,
   },
   formContainer: {
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: "bold",
     color: "#fff",
-    marginBottom: 12,
+    marginBottom: 16,
     textAlign: "center",
   },
   subtitle: {
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     borderRadius: 12,
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 24,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
     fontSize: 16,
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 24,
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: {

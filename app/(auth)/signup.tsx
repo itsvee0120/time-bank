@@ -1,4 +1,4 @@
-import { Link, router } from "expo-router";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { supabase } from "@/services/supabase";
 
-// Background image
 const LOGO_BACKGROUND = require("@/assets/images/login.png");
 
 export default function SignUpScreen() {
@@ -67,68 +66,24 @@ export default function SignUpScreen() {
     return true;
   };
 
-  async function signUp() {
+  const signUp = async () => {
     if (!validateForm()) return;
     setLoading(true);
 
     try {
-      // First, check if email already exists
-      const { data: existingUser } = await supabase
-        .from("users")
-        .select("id")
-        .eq("email", email.trim())
-        .single();
-
-      if (existingUser) {
-        Alert.alert(
-          "Account Already Exists",
-          "An account with this email already exists. Please log in instead.",
-          [
-            {
-              text: "Go to Login",
-              onPress: () => router.replace("/(auth)/login"),
-            },
-            { text: "Cancel", style: "cancel" },
-          ]
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Create Supabase Auth user - trigger will create the users record automatically
+      // Create Supabase Auth user
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
-          data: {
-            name: name.trim(),
-          },
+          data: { name: name.trim() },
+          emailRedirectTo: "exp://127.0.0.1:19000/(auth)/profile-setup",
+          // Replace with your deep link if in production
         },
       });
 
       if (error) {
-        console.log("Signup error:", error.message);
-        // Check for duplicate email in error message
-        const errorMessage = error.message.toLowerCase();
-        if (
-          errorMessage.includes("already") ||
-          errorMessage.includes("duplicate") ||
-          errorMessage.includes("exists")
-        ) {
-          Alert.alert(
-            "Account Already Exists",
-            "An account with this email already exists. Please log in instead.",
-            [
-              {
-                text: "Go to Login",
-                onPress: () => router.replace("/(auth)/login"),
-              },
-              { text: "Cancel", style: "cancel" },
-            ]
-          );
-        } else {
-          Alert.alert("Sign Up Error", error.message);
-        }
+        Alert.alert("Sign Up Error", error.message);
         setLoading(false);
         return;
       }
@@ -142,20 +97,19 @@ export default function SignUpScreen() {
         return;
       }
 
-      // If session exists, user is logged in immediately (trigger created the profile)
       if (session) {
-        // Success - AuthLayout will detect the session and redirect to profile-setup
-        // Don't call router.replace here
+        // Immediate session → redirect to profile setup
+        router.replace("/(auth)/profile-setup");
       } else {
-        // Email confirmation required
+        // Email confirmation required → show alert
         Alert.alert(
           "Check Your Email",
-          "A confirmation email has been sent. Please verify your email before logging in.",
+          "A confirmation email has been sent. Click the link to continue setting up your profile.",
           [{ text: "OK", onPress: () => router.replace("/(auth)/login") }]
         );
       }
     } catch (err: any) {
-      console.error("Signup catch error:", err);
+      console.error("Signup error:", err);
       Alert.alert(
         "Sign Up Error",
         "An unexpected error occurred. Please try again."
@@ -163,7 +117,7 @@ export default function SignUpScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   const renderRequirement = (label: string, met: boolean) => (
     <Text style={[styles.bulletItem, { color: met ? "#4ade80" : "#f87171" }]}>
@@ -178,7 +132,6 @@ export default function SignUpScreen() {
         style={styles.backgroundImage}
         resizeMode="cover"
       />
-
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
@@ -229,7 +182,6 @@ export default function SignUpScreen() {
               secureTextEntry
             />
 
-            {/* Live Password Check */}
             <View style={styles.bulletList}>
               {renderRequirement(
                 "At least 8 characters",
@@ -246,7 +198,6 @@ export default function SignUpScreen() {
               {renderRequirement("At least one number", passwordChecks.number)}
             </View>
 
-            {/* Sign Up Button */}
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
               disabled={loading}
@@ -256,16 +207,6 @@ export default function SignUpScreen() {
                 {loading ? "Creating Account..." : "Sign Up"}
               </Text>
             </TouchableOpacity>
-
-            {/* Already have an account? */}
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account? </Text>
-              <Link href="/(auth)/login" asChild>
-                <TouchableOpacity disabled={loading}>
-                  <Text style={styles.linkText}>Log In</Text>
-                </TouchableOpacity>
-              </Link>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -273,23 +214,11 @@ export default function SignUpScreen() {
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
   outerContainer: { flex: 1, backgroundColor: "#111827" },
-  backgroundImage: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
-    left: 0,
-    top: 0,
-  },
+  backgroundImage: { position: "absolute", width: "100%", height: "100%" },
   keyboardAvoidingView: { flex: 1 },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-    padding: 24,
-    backgroundColor: "transparent",
-  },
+  scrollContent: { flexGrow: 1, justifyContent: "center", padding: 24 },
   formContainer: {
     width: "100%",
     backgroundColor: "rgba(2, 23, 9, 0.73)",
@@ -317,9 +246,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    fontSize: 16,
   },
   bulletList: { marginBottom: 16 },
   bulletItem: { fontSize: 14, marginBottom: 2 },
@@ -334,12 +260,4 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { backgroundColor: "#6366F1", opacity: 0.6 },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  footer: { flexDirection: "row", justifyContent: "center", marginTop: 8 },
-  footerText: { color: "#D0D0D0", fontSize: 14 },
-  linkText: {
-    color: "#84d1a2f3",
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: 4,
-  },
 });

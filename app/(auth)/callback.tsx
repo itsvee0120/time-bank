@@ -25,8 +25,9 @@ export default function AuthCallback() {
             return;
           }
 
-          // Success - redirect to app
-          router.replace("/(app)/home");
+          // Success - refresh session & let AuthLayout decide where to go
+          await supabase.auth.getSession(); // ensures session is updated
+          router.replace("/(auth)/login"); // valid route string // <-- Let AuthLayout handle profile-setup or home
         } catch (err) {
           console.error("Callback error:", err);
           router.replace("/(auth)/login");
