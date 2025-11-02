@@ -12,6 +12,7 @@ import {
   Image,
 } from "react-native";
 import { Link, router } from "expo-router";
+import { FontAwesome } from "@expo/vector-icons";
 import { supabase } from "@/services/supabase";
 
 const LOGO_BACKGROUND = require("@/assets/images/login.png");
@@ -19,6 +20,7 @@ const LOGO_BACKGROUND = require("@/assets/images/login.png");
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const validateForm = (): boolean => {
@@ -58,7 +60,7 @@ export default function LoginScreen() {
         return;
       }
 
-      // Success - AuthLayout will handle navigation
+      // AuthLayout will handle navigation on success
     } catch (err) {
       console.error("SignIn error:", err);
       Alert.alert("Login Error", "Unexpected error occurred.");
@@ -98,16 +100,29 @@ export default function LoginScreen() {
               editable={!loading}
             />
 
-            <TextInput
-              style={styles.input}
-              onChangeText={setPassword}
-              value={password}
-              secureTextEntry
-              placeholder="Password"
-              placeholderTextColor="#B0B0B0"
-              autoCapitalize="none"
-              editable={!loading}
-            />
+            {/* Password input with show/hide toggle */}
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                onChangeText={setPassword}
+                value={password}
+                secureTextEntry={!showPassword}
+                placeholder="Password"
+                placeholderTextColor="#B0B0B0"
+                autoCapitalize="none"
+                editable={!loading}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeButton}
+              >
+                <FontAwesome
+                  name={showPassword ? "eye-slash" : "eye"}
+                  size={20}
+                  color="#84d1a2f3"
+                />
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity
               style={styles.forgotPassword}
@@ -193,6 +208,26 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.2)",
     fontSize: 16,
   },
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    height: 48,
+    marginBottom: 16,
+    paddingRight: 10,
+  },
+  passwordInput: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 16,
+    paddingHorizontal: 16,
+  },
+  eyeButton: {
+    padding: 4,
+  },
   forgotPassword: {
     alignSelf: "flex-end",
     marginTop: -10,
@@ -206,20 +241,19 @@ const styles = StyleSheet.create({
   button: {
     width: "100%",
     height: 48,
-    backgroundColor: "rgba(2, 23, 9, 0.73)",
+    backgroundColor: "#9ec5acff",
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
   },
   buttonDisabled: {
-    backgroundColor: "#6366F1",
     opacity: 0.6,
   },
   buttonText: {
-    color: "#fff",
+    color: "#041b0c",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   footer: {
     flexDirection: "row",

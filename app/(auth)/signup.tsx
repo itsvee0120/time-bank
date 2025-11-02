@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, Link } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
@@ -12,6 +12,7 @@ import {
   ScrollView,
   Image,
 } from "react-native";
+import { FontAwesome } from "@expo/vector-icons";
 import { supabase } from "@/services/supabase";
 
 const LOGO_BACKGROUND = require("@/assets/images/login.png");
@@ -21,14 +22,16 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Password requirement checks
   const passwordChecks = {
     length: password.length >= 8,
     uppercase: /[A-Z]/.test(password),
     lowercase: /[a-z]/.test(password),
     number: /[0-9]/.test(password),
+    special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
   };
 
   const validateEmail = (email: string) =>
@@ -42,6 +45,8 @@ export default function SignUpScreen() {
       return "Password must contain at least one lowercase letter";
     if (!passwordChecks.number)
       return "Password must contain at least one number";
+    if (!passwordChecks.special)
+      return "Password must contain at least one special character (!@#$%^&*)";
     return null;
   };
 
@@ -71,14 +76,12 @@ export default function SignUpScreen() {
     setLoading(true);
 
     try {
-      // Create Supabase Auth user
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
           data: { name: name.trim() },
           emailRedirectTo: "exp://127.0.0.1:19000/(auth)/profile-setup",
-          // Replace with your deep link if in production
         },
       });
 
@@ -98,10 +101,8 @@ export default function SignUpScreen() {
       }
 
       if (session) {
-        // Immediate session → redirect to profile setup
         router.replace("/(auth)/profile-setup");
       } else {
-        // Email confirmation required → show alert
         Alert.alert(
           "Check Your Email",
           "A confirmation email has been sent. Click the link to continue setting up your profile.",
@@ -153,6 +154,7 @@ export default function SignUpScreen() {
               editable={!loading}
               autoCapitalize="words"
             />
+
             <TextInput
               style={styles.input}
               placeholder="Email"
@@ -163,24 +165,54 @@ export default function SignUpScreen() {
               autoCapitalize="none"
               keyboardType="email-address"
             />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholderTextColor="#B0B0B0"
-              editable={!loading}
-              secureTextEntry
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Confirm Password"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholderTextColor="#B0B0B0"
-              editable={!loading}
-              secureTextEntry
-            />
+
+            {/* Password Field */}
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                placeholderTextColor="#B0B0B0"
+                editable={!loading}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeButton}
+              >
+                <FontAwesome
+                  name={showPassword ? "eye-slash" : "eye"}
+                  size={20}
+                  color="#84d1a2f3"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Confirm Password Field */}
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholderTextColor="#B0B0B0"
+                editable={!loading}
+                secureTextEntry={!showConfirmPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={styles.eyeButton}
+              >
+                <FontAwesome
+                  name={showConfirmPassword ? "eye-slash" : "eye"}
+                  size={20}
+                  color="#84d1a2f3"
+                />
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.bulletList}>
               {renderRequirement(
@@ -196,6 +228,10 @@ export default function SignUpScreen() {
                 passwordChecks.lowercase
               )}
               {renderRequirement("At least one number", passwordChecks.number)}
+              {renderRequirement(
+                "At least one special character (!@#$%^&*)",
+                passwordChecks.special
+              )}
             </View>
 
             <TouchableOpacity
@@ -207,6 +243,15 @@ export default function SignUpScreen() {
                 {loading ? "Creating Account..." : "Sign Up"}
               </Text>
             </TouchableOpacity>
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Already have an account? </Text>
+              <Link href="/(auth)/login" asChild>
+                <TouchableOpacity disabled={loading}>
+                  <Text style={styles.linkText}>Log In</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -246,18 +291,55 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    fontSize: 16,
+  },
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    height: 48,
+    marginBottom: 16,
+    paddingRight: 10,
+  },
+  passwordInput: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 16,
+    paddingHorizontal: 16,
+  },
+  eyeButton: {
+    padding: 4,
   },
   bulletList: { marginBottom: 16 },
-  bulletItem: { fontSize: 14, marginBottom: 2 },
+  bulletItem: { fontSize: 14, marginBottom: 4 },
   button: {
     width: "100%",
     height: 48,
-    backgroundColor: "rgba(2, 23, 9, 0.73)",
+    backgroundColor: "#9ec5acff",
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
   },
-  buttonDisabled: { backgroundColor: "#6366F1", opacity: 0.6 },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: "#041b0c", fontSize: 16, fontWeight: "700" },
+  footer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+  },
+  footerText: {
+    color: "#D0D0D0",
+    fontSize: 14,
+  },
+  linkText: {
+    color: "#84d1a2f3",
+    fontSize: 14,
+    fontWeight: "600",
+  },
 });

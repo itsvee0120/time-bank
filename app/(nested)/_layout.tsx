@@ -11,21 +11,8 @@ export default function NestedLayout() {
         headerShown: false,
       }}
     >
-      {/*
-        The default `headerLeft` above will apply to any screen not explicitly defined below.
-        This includes:
-        - [id].tsx (Task Details)
-        - my-requests.tsx
-        - report-time.tsx
-        - requests.tsx
-        - tasks-available.tsx
-        - user/[id].tsx
-      */}
-
-      {/* Override back button for edit-profile to go to settings */}
       <Stack.Screen name="edit-profile" options={{}} />
 
-      {/* Override back button for settings to go to the main profile tab */}
       <Stack.Screen
         name="settings"
         options={

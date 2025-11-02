@@ -143,7 +143,7 @@ export default function EditProfileScreen() {
           location: location.trim(),
           availability: availability.trim(),
           avatar_url: publicAvatarUrl,
-          // This marks the profile as complete if it wasn't already
+          // Mark profile as complete
           is_profile_complete: true,
         })
         .eq("id", session.user.id);
@@ -151,10 +151,7 @@ export default function EditProfileScreen() {
       if (updateError) throw updateError;
 
       Alert.alert("Success", "Your profile has been updated.", [
-        // This will correctly return the user to the 'Settings' screen,
-        // because the BackButton in the header is now configured to do so.
-        // Using router.back() is now the correct and consistent approach.
-        { text: "OK", onPress: () => router.back() },
+        { text: "OK", onPress: () => router.back() }, // Go back to the previous screen
       ]);
     } catch (err: any) {
       console.error("Profile update error:", err);

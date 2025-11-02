@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from "react";
+import { supabase } from "@/services/supabase";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
-import { supabase } from "@/services/supabase";
 
 export default function ResetPasswordScreen() {
   const [newPassword, setNewPassword] = useState("");
@@ -76,7 +76,7 @@ export default function ResetPasswordScreen() {
     try {
       const { error } = await supabase.auth.updateUser(
         { password: newPassword },
-        { accessToken: token } as any // <-- TS-safe cast
+        { accessToken: token } as any
       );
 
       if (error) throw error;
