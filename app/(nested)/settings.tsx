@@ -59,7 +59,7 @@ export default function SettingsScreen() {
   };
 
   const handleOpenSourceCode = async () => {
-    const url = "https://github.com/nviolet/time-bank";
+    const url = "https://github.com/itsvee0120/time-bank";
     try {
       await Linking.openURL(url);
     } catch (error) {
