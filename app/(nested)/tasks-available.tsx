@@ -5,7 +5,7 @@ import { FontAwesome5 } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   LayoutAnimation,
@@ -18,6 +18,7 @@ import {
   TouchableOpacity,
   UIManager,
   View,
+  BackHandler,
 } from "react-native";
 
 // Type-safe task type
@@ -100,6 +101,24 @@ export default function TasksAvailableScreen() {
   const [minTime, setMinTime] = useState("");
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (router.canGoBack()) {
+          router.replace("/dashboard");
+        }
+        return true;
+      };
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [router])
+  );
 
   // Fetch current time balance
   useEffect(() => {

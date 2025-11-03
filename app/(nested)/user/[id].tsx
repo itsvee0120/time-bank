@@ -3,11 +3,12 @@ import { Database } from "@/services/supabaseTypes";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Image,
   ScrollView,
   StyleSheet,
@@ -21,10 +22,29 @@ const FALLBACK_AVATAR = require("@/assets/images/temp-profile-pic.png");
 
 export default function UserProfilePage() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarLoaded, setAvatarLoaded] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (router.canGoBack()) {
+          router.back();
+        }
+        return true;
+      };
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [router])
+  );
 
   useEffect(() => {
     if (!id) {
@@ -115,19 +135,20 @@ export default function UserProfilePage() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>User Details</Text>
 
-          {profile.skill_sets && profile.skill_sets.length > 0 && (
-            <View style={styles.infoCard}>
-              <FontAwesome5 name="tools" style={styles.infoIcon} />
-              <Text style={styles.label}>Skills</Text>
-              <View style={styles.skillsContainer}>
-                {profile.skill_sets.map((skill) => (
-                  <View key={skill} style={styles.skillTag}>
-                    <Text style={styles.skillText}>{skill}</Text>
-                  </View>
-                ))}
+          {Array.isArray(profile.skill_sets) &&
+            profile.skill_sets.length > 0 && (
+              <View style={styles.infoCard}>
+                <FontAwesome5 name="tools" style={styles.infoIcon} />
+                <Text style={styles.label}>Skills</Text>
+                <View style={styles.skillsContainer}>
+                  {profile.skill_sets.map((skill) => (
+                    <View key={skill} style={styles.skillTag}>
+                      <Text style={styles.skillText}>{skill}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-            </View>
-          )}
+            )}
 
           {profile.location && (
             <View style={styles.infoCard}>

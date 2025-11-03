@@ -5,8 +5,8 @@ import { FontAwesome5 } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +19,7 @@ import {
   ToastAndroid,
   TouchableOpacity,
   View,
+  BackHandler,
 } from "react-native";
 
 interface AssignableTask {
@@ -39,6 +40,24 @@ export default function ReportTimeScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [newTaskAvailable, setNewTaskAvailable] = useState(false);
   const pulseAnim = new Animated.Value(1);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (router.canGoBack()) {
+          router.replace("/dashboard");
+        }
+        return true;
+      };
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [router])
+  );
 
   useEffect(() => {
     if (newTaskAvailable) {

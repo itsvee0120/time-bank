@@ -5,11 +5,12 @@ import { Picker } from "@react-native-picker/picker";
 import { BlurView } from "expo-blur";
 import * as DocumentPicker from "expo-document-picker";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Image,
   ScrollView,
   StyleSheet,
@@ -34,6 +35,24 @@ export default function RequestsScreen() {
     useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [loading, setLoading] = useState(false);
   const [userBalance, setUserBalance] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (router.canGoBack()) {
+          router.replace("/dashboard");
+        }
+        return true;
+      };
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [router])
+  );
 
   // Fetch user's current time balance
   useEffect(() => {

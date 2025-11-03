@@ -166,6 +166,21 @@ export default function ProfilePage() {
               <Text style={styles.value}>{profile.availability}</Text>
             </View>
           )}
+
+          {Array.isArray(profile?.skill_sets) &&
+            profile.skill_sets.length > 0 && (
+              <View style={styles.infoCard}>
+                <FontAwesome5 name="tools" style={styles.infoIcon} />
+                <Text style={styles.label}>Skills</Text>
+                <View style={styles.skillsContainer}>
+                  {profile.skill_sets.map((skill) => (
+                    <View key={skill} style={styles.skillTag}>
+                      <Text style={styles.skillText}>{skill}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
         </View>
 
         <TouchableOpacity
@@ -288,6 +303,19 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     flex: 1,
+  },
+  skillsContainer: { flexDirection: "row", flexWrap: "wrap", flex: 1 },
+  skillTag: {
+    backgroundColor: "rgba(52, 211, 153, 0.2)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  skillText: {
+    color: "#aaffcbff",
+    fontSize: 14,
   },
   button: {
     flexDirection: "row",
