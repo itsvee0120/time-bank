@@ -101,7 +101,7 @@ export default function TasksAvailableScreen() {
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch user's current time balance
+  // Fetch current time balance
   useEffect(() => {
     if (!session?.user?.id) return;
 

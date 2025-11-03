@@ -50,3 +50,8 @@ yarn-error.*
 # OS-specific files
 .DS_Store
 Thumbs.dbandroid/app/google-services.json
+
+
+supabase/signing_keys.json
+.env
+google-services.json

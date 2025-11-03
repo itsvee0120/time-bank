@@ -1,27 +1,27 @@
-import { router, Link } from "expo-router";
+import { supabase } from "@/services/supabase";
+import { FontAwesome } from "@expo/vector-icons";
+import { Link, router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Image,
 } from "react-native";
-import { FontAwesome } from "@expo/vector-icons";
-import { supabase } from "@/services/supabase";
 
 const LOGO_BACKGROUND = require("@/assets/images/login.png");
 
 export default function SignUpScreen() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [name, setName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -37,26 +37,25 @@ export default function SignUpScreen() {
   const validateEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  const validatePassword = (password: string): string | null => {
+  const validatePassword = (password: string) => {
     if (!passwordChecks.length) return "Password must be at least 8 characters";
     if (!passwordChecks.uppercase)
-      return "Password must contain at least one uppercase letter";
+      return "Password must contain an uppercase letter";
     if (!passwordChecks.lowercase)
-      return "Password must contain at least one lowercase letter";
-    if (!passwordChecks.number)
-      return "Password must contain at least one number";
+      return "Password must contain a lowercase letter";
+    if (!passwordChecks.number) return "Password must contain a number";
     if (!passwordChecks.special)
-      return "Password must contain at least one special character (!@#$%^&*)";
+      return "Password must contain a special character";
     return null;
   };
 
-  const validateForm = (): boolean => {
+  const validateForm = () => {
     if (!name.trim() || name.trim().length < 2) {
-      Alert.alert("Validation Error", "Please enter a valid name");
+      Alert.alert("Validation Error", "Enter a valid name");
       return false;
     }
     if (!email.trim() || !validateEmail(email.trim())) {
-      Alert.alert("Validation Error", "Please enter a valid email");
+      Alert.alert("Validation Error", "Enter a valid email");
       return false;
     }
     const passwordError = validatePassword(password);
@@ -76,32 +75,24 @@ export default function SignUpScreen() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      //  1. Sign up user with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
-          data: { name: name.trim() },
-          emailRedirectTo: "exp://127.0.0.1:19000/(auth)/profile-setup",
+          data: { name: name.trim() }, // optional metadata
+          emailRedirectTo: "exp://10.0.0.46:8081/(auth)/profile-setup",
         },
       });
 
-      if (error) {
-        Alert.alert("Sign Up Error", error.message);
-        setLoading(false);
-        return;
-      }
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("No user returned from Supabase.");
 
-      const user = data?.user;
-      const session = data?.session;
+      //  2. The trigger on auth.users automatically creates a row in public.users
+      // No manual insert needed. Just navigate or show a message.
 
-      if (!user) {
-        Alert.alert("Sign Up Error", "No user returned from Supabase.");
-        setLoading(false);
-        return;
-      }
-
-      if (session) {
-        router.replace("/(auth)/profile-setup");
+      if (authData.session) {
+        router.replace("/(app)/home");
       } else {
         Alert.alert(
           "Check Your Email",
@@ -111,17 +102,14 @@ export default function SignUpScreen() {
       }
     } catch (err: any) {
       console.error("Signup error:", err);
-      Alert.alert(
-        "Sign Up Error",
-        "An unexpected error occurred. Please try again."
-      );
+      Alert.alert("Sign Up Error", err.message || "Unexpected error occurred.");
     } finally {
       setLoading(false);
     }
   };
 
   const renderRequirement = (label: string, met: boolean) => (
-    <Text style={[styles.bulletItem, { color: met ? "#4ade80" : "#f87171" }]}>
+    <Text style={{ color: met ? "#4ade80" : "#f87171", marginBottom: 2 }}>
       {met ? "✅ " : "❌ "} {label}
     </Text>
   );
@@ -151,32 +139,31 @@ export default function SignUpScreen() {
               value={name}
               onChangeText={setName}
               placeholderTextColor="#B0B0B0"
-              editable={!loading}
               autoCapitalize="words"
+              editable={!loading}
             />
-
             <TextInput
               style={styles.input}
               placeholder="Email"
               value={email}
               onChangeText={setEmail}
               placeholderTextColor="#B0B0B0"
-              editable={!loading}
               autoCapitalize="none"
               keyboardType="email-address"
+              editable={!loading}
             />
 
-            {/* Password Field */}
+            {/* Password */}
             <View style={styles.passwordContainer}>
               <TextInput
                 style={styles.passwordInput}
+                placeholderTextColor="#B0B0B0"
                 placeholder="Password"
                 value={password}
                 onChangeText={setPassword}
-                placeholderTextColor="#B0B0B0"
-                editable={!loading}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                editable={!loading}
               />
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
@@ -190,21 +177,21 @@ export default function SignUpScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Confirm Password Field */}
+            {/* Confirm Password */}
             <View style={styles.passwordContainer}>
               <TextInput
                 style={styles.passwordInput}
+                placeholderTextColor="#B0B0B0"
                 placeholder="Confirm Password"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                placeholderTextColor="#B0B0B0"
-                editable={!loading}
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
+                editable={!loading}
               />
               <TouchableOpacity
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                 style={styles.eyeButton}
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
               >
                 <FontAwesome
                   name={showConfirmPassword ? "eye-slash" : "eye"}
@@ -214,7 +201,7 @@ export default function SignUpScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.bulletList}>
+            <View style={{ marginBottom: 16 }}>
               {renderRequirement(
                 "At least 8 characters",
                 passwordChecks.length
@@ -229,13 +216,13 @@ export default function SignUpScreen() {
               )}
               {renderRequirement("At least one number", passwordChecks.number)}
               {renderRequirement(
-                "At least one special character (!@#$%^&*)",
+                "At least one special character",
                 passwordChecks.special
               )}
             </View>
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, loading && { opacity: 0.6 }]}
               disabled={loading}
               onPress={signUp}
             >
@@ -266,7 +253,7 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, justifyContent: "center", padding: 24 },
   formContainer: {
     width: "100%",
-    backgroundColor: "rgba(2, 23, 9, 0.73)",
+    backgroundColor: "rgba(2,23,9,0.73)",
     borderRadius: 12,
     padding: 20,
   },
@@ -300,10 +287,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.1)",
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
     height: 48,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
     paddingRight: 10,
   },
   passwordInput: {
@@ -312,11 +299,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 16,
   },
-  eyeButton: {
-    padding: 4,
-  },
-  bulletList: { marginBottom: 16 },
-  bulletItem: { fontSize: 14, marginBottom: 4 },
+  eyeButton: { padding: 4 },
   button: {
     width: "100%",
     height: 48,
@@ -325,7 +308,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  buttonDisabled: { opacity: 0.6 },
   buttonText: { color: "#041b0c", fontSize: 16, fontWeight: "700" },
   footer: {
     flexDirection: "row",
@@ -341,5 +323,6 @@ const styles = StyleSheet.create({
     color: "#84d1a2f3",
     fontSize: 14,
     fontWeight: "600",
+    marginLeft: 4,
   },
 });

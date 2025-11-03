@@ -48,7 +48,7 @@ export default function ProfilePage() {
         .from("users")
         .select("*") // avatar_url is included in '*'
         .eq("id", session.user.id)
-        .maybeSingle(); // ✅ Use maybeSingle() instead of single()
+        .maybeSingle(); // Use maybeSingle() instead of single()
 
       if (error) {
         console.error("Profile fetch error:", error);

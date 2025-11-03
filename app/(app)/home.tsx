@@ -1,17 +1,29 @@
 import TimeBalanceCard from "@/components/TimeBalanceCard";
+import TimeReportGuide from "@/components/TimeReportGuide";
 import { useAuth } from "@/services/AuthContext";
 import { useScroll } from "@/services/ScrollContext";
 import { supabase } from "@/services/supabase";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Animated, Image, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Animated,
+  Image,
+  Linking,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
 const FALLBACK_AVATAR = require("@/assets/images/temp-profile-pic.png");
 
 export default function Home() {
   const { session } = useAuth();
   const { scrollY } = useScroll();
   const username = session?.user?.user_metadata?.name ?? "User";
+  const router = useRouter();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarLoaded, setAvatarLoaded] = useState(true);
   const [balance, setBalance] = useState<number>(0);
@@ -35,6 +47,15 @@ export default function Home() {
     fetchUserData();
   }, [session?.user?.id]);
 
+  const handleReportActivity = async () => {
+    const url = "https://forms.gle/LhpXXSa4wnLLQu8T7";
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert("Error", "Could not open the form.");
+    }
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -57,13 +78,8 @@ export default function Home() {
         )}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-        // ✨ SMOOTHNESS FIXES ✨
-        // 1. Increases scroll speed acceleration (especially noticeable on Android)
         decelerationRate="fast"
-        // 2. Improves native responsiveness
-        indicatorStyle="white" // Ensure scroll indicator is visible against dark background
-        // 3. (Optional) For highly complex views, this optimizes rendering. Use cautiously.
-        // removeClippedSubviews={true}
+        indicatorStyle="white"
       >
         <View style={styles.welcomeRow}>
           <Image
@@ -80,6 +96,8 @@ export default function Home() {
           <TimeBalanceCard balance={balance} />
         </View>
 
+        <TimeReportGuide />
+
         <View style={styles.aboutSection}>
           <Text style={styles.title}>About Houreum</Text>
           <Text style={styles.description}>
@@ -87,21 +105,36 @@ export default function Home() {
             skills and time.
           </Text>
 
-          <Text style={styles.subtitle}>How to Get Started:</Text>
-          <Text style={styles.description}>
-            1. Sign up and create your profile{"\n"}
-            2. Browse available tasks and requests{"\n"}
-            3. Offer your time or request help{"\n"}
-            4. Earn and spend your time credits
-          </Text>
-
           <Text style={styles.subtitle}>Community Rules & Policies:</Text>
           <Text style={styles.description}>
             1. Be respectful and kind to all members{"\n"}
             2. Complete tasks you commit to{"\n"}
             3. Accurately report your hours and contributions{"\n"}
-            4. Do not misuse the platform for commercial purposes{"\n"}
-            5. Report suspicious activity to maintain trust
+            4. Do not misuse the platform for commercial purposes
+          </Text>
+          <Text style={styles.description}>
+            5.{" "}
+            <Text style={styles.linkText} onPress={handleReportActivity}>
+              Report suspicious activity
+            </Text>{" "}
+            to maintain trust
+          </Text>
+
+          <Text style={styles.subtitle}>Disclaimer:</Text>
+          <Text style={styles.description}>
+            The developers of this application are not responsible for any
+            misuse of the platform, disputes between users, or the quality of
+            services exchanged. Use of this platform is at your own risk.
+          </Text>
+          <Text style={[styles.description, { marginTop: 20 }]}>
+            You can check out our{" "}
+            <Text
+              style={styles.linkText}
+              onPress={() => router.push("/privacy-security")}
+            >
+              Privacy & Security policy
+            </Text>{" "}
+            under Settings.
           </Text>
         </View>
       </Animated.ScrollView>
@@ -116,7 +149,6 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: "center",
     paddingTop: 50,
-    // Padding to clear the fixed tab bar
     paddingBottom: 150,
   },
   welcomeRow: {
@@ -156,4 +188,9 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   description: { fontSize: 16, color: "#ffffff", lineHeight: 22 },
+  linkText: {
+    color: "rgba(209, 172, 255, 0.9)",
+    textDecorationLine: "underline",
+    fontWeight: "600",
+  },
 });

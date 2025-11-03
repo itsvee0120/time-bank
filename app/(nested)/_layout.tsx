@@ -21,6 +21,8 @@ export default function NestedLayout() {
           }
         }
       />
+      <Stack.Screen name="notifications" options={{}} />
+      <Stack.Screen name="privacy-security" options={{}} />
     </Stack>
   );
 }

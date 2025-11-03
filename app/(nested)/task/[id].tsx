@@ -130,7 +130,9 @@ export default function TaskDetailScreen() {
       return;
     }
 
+    // Disable button immediately
     setIsAccepting(true);
+
     try {
       const { error } = await supabase
         .from("tasks")
@@ -149,9 +151,7 @@ export default function TaskDetailScreen() {
         { text: "OK", onPress: () => router.back() },
       ]);
 
-      // ----------------------
       // Trigger notifications
-      // ----------------------
       await onTaskAccepted(task.id, session.user.id, task.created_by);
 
       await scheduleLocalNotification(

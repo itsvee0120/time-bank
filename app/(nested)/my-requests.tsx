@@ -1,7 +1,7 @@
 import { useAuth } from "@/services/AuthContext";
 import { supabase } from "@/services/supabase";
-import { onTaskCompleted } from "@/services/taskNotifications";
 import { Tables } from "@/services/supabaseTypes";
+import { onTaskCompleted } from "@/services/taskNotifications";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
@@ -58,12 +58,19 @@ const getStatusStyle = (status: string) => {
 const RequestCard: React.FC<{
   request: MyRequest;
   onComplete: (id: string) => void;
-}> = ({ request, onComplete }) => {
+  onUnassign: (id: string) => void;
+  onDelete: (id: string) => void;
+}> = ({ request, onComplete, onUnassign, onDelete }) => {
   const router = useRouter();
   const { backgroundColor, borderColor, textColor } = getStatusStyle(
     request.status
   );
   const attachment = request.task_attachments[0];
+
+  // Check if time has been reported
+  const hasReportedTime =
+    request.reported_hours !== null && request.reported_hours !== undefined;
+  const canComplete = request.status === "In Progress" && hasReportedTime;
 
   return (
     <View style={styles.card}>
@@ -118,6 +125,24 @@ const RequestCard: React.FC<{
         )}
       </View>
 
+      {/* Show reported hours if available */}
+      {hasReportedTime && (
+        <View style={styles.reportedTimeContainer}>
+          <FontAwesome5 name="clock" style={styles.reportedIcon} />
+          <View style={styles.reportedTimeContent}>
+            <Text style={styles.reportedTimeLabel}>Time Reported:</Text>
+            <Text style={styles.reportedTimeValue}>
+              {request.reported_hours} hours
+            </Text>
+          </View>
+          {request.reported_at && (
+            <Text style={styles.reportedDate}>
+              {new Date(request.reported_at).toLocaleDateString()}
+            </Text>
+          )}
+        </View>
+      )}
+
       {attachment && (
         <View style={styles.infoRow}>
           <FontAwesome5 name="paperclip" style={styles.infoIcon} />
@@ -130,20 +155,63 @@ const RequestCard: React.FC<{
         </View>
       )}
 
+      {/* Action Buttons */}
       {request.status === "In Progress" && (
-        <TouchableOpacity
-          style={styles.completeButton}
-          onPress={() => onComplete(request.id)}
-        >
-          <FontAwesome5
-            name="flag-checkered"
-            size={16}
-            color="#041b0c"
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.completeButtonText}>Mark Completed</Text>
-        </TouchableOpacity>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[
+              styles.completeButton,
+              !canComplete && styles.completeButtonDisabled,
+            ]}
+            onPress={() => canComplete && onComplete(request.id)}
+            disabled={!canComplete}
+          >
+            <FontAwesome5
+              name="flag-checkered"
+              size={16}
+              color={canComplete ? "#041b0c" : "#04 1b0c80"}
+              style={{ marginRight: 8 }}
+            />
+            <Text
+              style={[
+                styles.completeButtonText,
+                !canComplete && styles.completeButtonTextDisabled,
+              ]}
+            >
+              {hasReportedTime
+                ? "Approve & Complete"
+                : "Waiting for Time Report"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.unassignButton}
+            onPress={() => onUnassign(request.id)}
+          >
+            <FontAwesome5
+              name="user-times"
+              size={16}
+              color="#160058ff"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.unassignButtonText}>Unassign</Text>
+          </TouchableOpacity>
+        </View>
       )}
+
+      {/* Delete Button - Available for all statuses */}
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={() => onDelete(request.id)}
+      >
+        <FontAwesome5
+          name="trash-alt"
+          size={16}
+          color="#4d0000ff"
+          style={{ marginRight: 6 }}
+        />
+        <Text style={styles.deleteButtonText}>Delete Task</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -154,6 +222,8 @@ export default function MyRequestsScreen() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"current" | "past">("current");
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [unassigningId, setUnassigningId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchRequests = async () => {
     if (!session?.user?.id) return;
@@ -200,34 +270,151 @@ export default function MyRequestsScreen() {
       ? "You have no open or in-progress requests."
       : "You have no past requests.";
 
+  // Imports remain the same
+  // Add: useState, useEffect, useMemo, Alert, etc.
+
   const handleComplete = async (taskId: string) => {
+    const completedTask = requests.find((r) => r.id === taskId);
+
+    if (!completedTask) return Alert.alert("Error", "Task not found.");
+    if (!completedTask.reported_hours)
+      return Alert.alert("Cannot Complete", "Worker hasn't reported time yet.");
+
+    const reportedHours = completedTask.reported_hours;
+    const offeredHours = completedTask.time_offered;
+
+    Alert.alert(
+      "Approve Time & Complete Task",
+      `Worker reported: ${reportedHours} hours\nOffered: ${offeredHours} hours\n\nApproving will update their time balance.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Approve",
+          onPress: () => completeTask(taskId, reportedHours),
+        },
+      ]
+    );
+  };
+
+  const completeTask = async (taskId: string, reportedHours: number) => {
     setCompletingId(taskId);
     try {
-      const { error } = await supabase
-        .from("tasks")
-        .update({ status: "Completed" })
-        .eq("id", taskId)
-        .select()
-        .single();
-      if (error) throw error;
+      const task = requests.find((r) => r.id === taskId);
+      if (!task?.assigned_to || !task?.created_by)
+        throw new Error("Missing task data");
 
-      // Find the task to get assigned user's ID for notification
-      const completedTask = requests.find((r) => r.id === taskId);
-      if (completedTask?.assigned_to && completedTask?.created_by) {
-        await onTaskCompleted(
-          completedTask.id,
-          completedTask.assigned_to,
-          completedTask.created_by
-        );
-      }
-      Alert.alert("Success", "Task marked as completed!");
+      // RPC handles atomic update: task status + balance
+      const { error: rpcError } = await supabase.rpc("report_time", {
+        task_id: taskId,
+        worker_id: task.assigned_to,
+        creator_id: task.created_by,
+        hours: reportedHours,
+      });
+      if (rpcError) throw rpcError;
+
+      // Notify worker
+      await onTaskCompleted(taskId, task.assigned_to, task.created_by);
+
+      Alert.alert(
+        "Success",
+        `Task completed! ${reportedHours} hours added to worker's balance.`
+      );
       fetchRequests();
     } catch (err) {
       console.error("Error completing task:", err);
-      Alert.alert("Error", "Failed to mark task as completed.");
+      Alert.alert("Error", "Failed to complete task. Please try again.");
     } finally {
       setCompletingId(null);
     }
+  };
+
+  const handleUnassign = async (taskId: string) => {
+    const task = requests.find((r) => r.id === taskId);
+
+    if (!task || !task.assigned_to_user) {
+      Alert.alert("Error", "No user assigned to this task.");
+      return;
+    }
+
+    const warningMessage = task.reported_hours
+      ? `${task.assigned_to_user.name} has already reported ${task.reported_hours} hours. Unassigning will clear this report.`
+      : `Are you sure you want to unassign ${task.assigned_to_user.name}?`;
+
+    Alert.alert("Unassign User?", warningMessage, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Unassign",
+        style: "destructive",
+        onPress: async () => {
+          setUnassigningId(taskId);
+          try {
+            const { error } = await supabase
+              .from("tasks")
+              .update({
+                status: "Open",
+                assigned_to: null,
+                reported_hours: null,
+                reported_by: null,
+                reported_at: null,
+              })
+              .eq("id", taskId);
+
+            if (error) throw error;
+
+            Alert.alert("Success", "User unassigned and task reopened.");
+            fetchRequests();
+          } catch (err) {
+            console.error("Error unassigning user:", err);
+            Alert.alert("Error", "Failed to unassign user.");
+          } finally {
+            setUnassigningId(null);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleDelete = async (taskId: string) => {
+    const task = requests.find((r) => r.id === taskId);
+
+    if (!task) {
+      Alert.alert("Error", "Task not found.");
+      return;
+    }
+
+    const warningMessage =
+      task.status === "In Progress" && task.assigned_to_user
+        ? `This task is assigned to ${task.assigned_to_user.name}. Deleting it will remove their assignment.`
+        : task.status === "Completed"
+        ? "This task is completed. Are you sure you want to delete it?"
+        : "Are you sure you want to delete this task?";
+
+    Alert.alert("Delete Task?", warningMessage, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          setDeletingId(taskId);
+          try {
+            const { error } = await supabase
+              .from("tasks")
+              .delete()
+              .eq("id", taskId);
+
+            if (error) throw error;
+
+            Alert.alert("Success", "Task deleted.");
+            fetchRequests();
+          } catch (err) {
+            console.error("Error deleting task:", err);
+            Alert.alert("Error", "Failed to delete task.");
+          } finally {
+            setDeletingId(null);
+          }
+        },
+      },
+    ]);
   };
 
   return (
@@ -281,6 +468,8 @@ export default function MyRequestsScreen() {
               key={request.id}
               request={request}
               onComplete={handleComplete}
+              onUnassign={handleUnassign}
+              onDelete={handleDelete}
             />
           ))
         ) : (
@@ -376,14 +565,49 @@ const styles = StyleSheet.create({
     color: "rgba(209, 172, 255, 0.8)",
     textDecorationLine: "underline",
   },
+  reportedTimeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(174, 255, 203, 0.1)",
+    padding: 12,
+    borderRadius: 12,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: "rgba(174, 255, 203, 0.3)",
+  },
+  reportedIcon: {
+    color: "#aaffcbff",
+    fontSize: 16,
+    marginRight: 10,
+  },
+  reportedTimeContent: {
+    flex: 1,
+  },
+  reportedTimeLabel: {
+    fontSize: 12,
+    color: "#ffffffa0",
+    marginBottom: 2,
+  },
+  reportedTimeValue: {
+    fontSize: 16,
+    color: "#aaffcbff",
+    fontWeight: "700",
+  },
+  reportedDate: {
+    fontSize: 11,
+    color: "#ffffff60",
+  },
   emptyText: {
     fontSize: 14,
     color: "#ffffffa0",
     textAlign: "center",
     padding: 20,
   },
-  completeButton: {
+  buttonContainer: {
     marginTop: 15,
+    gap: 10,
+  },
+  completeButton: {
     backgroundColor: "#9ec5acff",
     flexDirection: "row",
     alignItems: "center",
@@ -391,5 +615,46 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 25,
   },
-  completeButtonText: { color: "#041b0c", fontWeight: "700", fontSize: 14 },
+  completeButtonDisabled: {
+    backgroundColor: "rgba(158, 197, 172, 0.3)",
+  },
+  completeButtonText: {
+    color: "#041b0c",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  completeButtonTextDisabled: {
+    color: "rgba(4, 27, 12, 0.5)",
+  },
+  unassignButton: {
+    backgroundColor: "rgba(146, 122, 216, 0.82)",
+    borderWidth: 1,
+    borderColor: "#A78BFA",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 25,
+  },
+  unassignButtonText: {
+    color: "#160058ff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  deleteButton: {
+    backgroundColor: "rgba(214, 104, 104, 0.97)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 68, 68, 1)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 10,
+  },
+  deleteButtonText: {
+    color: "#4d0000ff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
 });

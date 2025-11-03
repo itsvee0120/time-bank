@@ -4,6 +4,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Href, useRouter } from "expo-router";
 import React from "react";
 import {
+  Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -38,6 +40,33 @@ export default function SettingsScreen() {
     router.push(path);
   };
 
+  const handleReportActivity = async () => {
+    const url = "https://forms.gle/LhpXXSa4wnLLQu8T7";
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert("Error", "Could not open the form.");
+    }
+  };
+
+  const handleReportBug = async () => {
+    const url = "https://forms.gle/iVCd1uZq1FHB6tZ89";
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert("Error", "Could not open the form.");
+    }
+  };
+
+  const handleOpenSourceCode = async () => {
+    const url = "https://github.com/nviolet/time-bank";
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert("Error", "Could not open the link to the source code.");
+    }
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -59,19 +88,43 @@ export default function SettingsScreen() {
           <SettingsItem
             icon="user-edit"
             label="Edit Profile"
-            onPress={() => handleNavigate("/edit-profile")} /* Placeholder */
+            onPress={() => handleNavigate("/edit-profile")}
           />
           <View style={styles.separator} />
           <SettingsItem
             icon="bell"
             label="Notifications"
-            onPress={() => {}} /* Placeholder */
+            onPress={() => handleNavigate("/notifications")}
           />
           <View style={styles.separator} />
           <SettingsItem
             icon="shield-alt"
             label="Privacy & Security"
-            onPress={() => {}} /* Placeholder */
+            onPress={() => handleNavigate("/privacy-security")}
+          />
+          <View style={styles.separator} />
+          <SettingsItem
+            icon="flag"
+            label="Report Suspicious Activity"
+            onPress={handleReportActivity}
+          />
+          <View style={styles.separator} />
+          <SettingsItem
+            icon="bug"
+            label="Report a Bug"
+            onPress={handleReportBug}
+          />
+          <View style={styles.separator} />
+          <SettingsItem
+            icon="code"
+            label="About Developer"
+            onPress={() => handleNavigate("/about-developer")}
+          />
+          <View style={styles.separator} />
+          <SettingsItem
+            icon="code-branch"
+            label="Source Code"
+            onPress={handleOpenSourceCode}
           />
         </View>
       </ScrollView>

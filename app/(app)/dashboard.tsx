@@ -1,10 +1,10 @@
-import { useAuth } from "@/services/AuthContext"; // Assuming this path
+import { useAuth } from "@/services/AuthContext";
 import { useScroll } from "@/services/ScrollContext";
-import { supabase } from "@/services/supabase"; // Assuming this path
+import { supabase } from "@/services/supabase";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router"; // 👈 ADDED FOR NAVIGATION
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,18 +16,7 @@ import {
   View,
 } from "react-native";
 
-// --- Types based on your Supabase Schema ---
-interface LedgerTask {
-  id: string;
-  time_earned: number;
-  // task (from join with tasks table)
-  tasks: {
-    id: string;
-    title: string;
-    status: string;
-  } | null;
-}
-
+// --- Types ---
 interface TaskData {
   id: string;
   details: string;
@@ -39,16 +28,15 @@ const FALLBACK_AVATAR = require("@/assets/images/temp-profile-pic.png");
 const BUTTON_HEIGHT = 45;
 
 // --- Helper Functions ---
-const formatHours = (hours: number): string => {
-  // Ensure the time format looks clean (e.g., 1.5 hours)
-  return `${hours} hour${hours !== 1 ? "s" : ""}`;
-};
+const formatHours = (hours: number): string =>
+  `${hours} hour${hours !== 1 ? "s" : ""}`;
 
-// --- Reusable TaskRow Component ---
-interface TaskRowProps extends TaskData {
-  onPress: () => void;
-}
-const TaskRow: React.FC<TaskRowProps> = ({ details, timeEarned, onPress }) => (
+// --- Components ---
+const TaskRow: React.FC<TaskData & { onPress: () => void }> = ({
+  details,
+  timeEarned,
+  onPress,
+}) => (
   <TouchableOpacity style={styles.taskRow} onPress={onPress}>
     <Text style={styles.taskDetails} numberOfLines={1}>
       {details}
@@ -57,45 +45,36 @@ const TaskRow: React.FC<TaskRowProps> = ({ details, timeEarned, onPress }) => (
   </TouchableOpacity>
 );
 
-// --- Reusable ActionButton Component ---
-interface ActionButtonProps {
+const ActionButton: React.FC<{
   iconName: keyof typeof FontAwesome5.glyphMap;
   label: string;
   onPress: () => void;
   style: "primary" | "secondary" | "tertiary";
   isRightButton?: boolean;
-}
-
-const ActionButton: React.FC<ActionButtonProps> = ({
-  iconName,
-  label,
-  onPress,
-  style,
-  isRightButton,
-}) => {
-  let buttonStyle;
-  let textStyle;
-  let iconColor;
-
-  if (style === "primary") {
-    buttonStyle = styles.primaryButton;
-    textStyle = styles.primaryButtonText;
-    iconColor = "#ffffff";
-  } else if (style === "secondary") {
-    buttonStyle = styles.secondaryButton;
-    textStyle = styles.secondaryButtonText;
-    iconColor = "#1d5e3aff";
-  } else {
-    buttonStyle = styles.tertiaryButton;
-    textStyle = styles.tertiaryButtonText;
-    iconColor = "#041b0c";
-  }
+}> = ({ iconName, label, onPress, style, isRightButton }) => {
+  const stylesMap = {
+    primary: {
+      button: styles.primaryButton,
+      text: styles.primaryButtonText,
+      icon: "#fff",
+    },
+    secondary: {
+      button: styles.secondaryButton,
+      text: styles.secondaryButtonText,
+      icon: "#1d5e3aff",
+    },
+    tertiary: {
+      button: styles.tertiaryButton,
+      text: styles.tertiaryButtonText,
+      icon: "#041b0c",
+    },
+  }[style];
 
   return (
     <TouchableOpacity
       style={[
         styles.actionButtonBase,
-        buttonStyle,
+        stylesMap.button,
         isRightButton && styles.tertiaryButtonRight,
       ]}
       onPress={onPress}
@@ -103,15 +82,14 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       <FontAwesome5
         name={iconName}
         size={20}
-        color={iconColor}
+        color={stylesMap.icon}
         style={styles.actionIcon}
       />
-      <Text style={textStyle}>{label}</Text>
+      <Text style={stylesMap.text}>{label}</Text>
     </TouchableOpacity>
   );
 };
 
-// --- Reusable MiniTimeBalanceCard Component ---
 const MiniTimeBalanceCard: React.FC<{ balance: number }> = ({ balance }) => (
   <View style={styles.miniBalanceCard}>
     <Text style={styles.miniBalanceLabel}>Time Balance</Text>
@@ -122,92 +100,87 @@ const MiniTimeBalanceCard: React.FC<{ balance: number }> = ({ balance }) => (
 export default function Dashboard() {
   const { session } = useAuth();
   const { scrollY } = useScroll();
-  const router = useRouter(); // 👈 INITIALIZED ROUTER
+  const router = useRouter();
   const userId = session?.user?.id;
+
   const [username, setUsername] = useState("User");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarLoaded, setAvatarLoaded] = useState(true);
-  const [completedTasks, setCompletedTasks] = useState<TaskData[]>([]);
-  const [ongoingTasks, setOngoingTasks] = useState<TaskData[]>([]);
-  const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const [ongoingTasks, setOngoingTasks] = useState<TaskData[]>([]);
+  const [completedTasks, setCompletedTasks] = useState<TaskData[]>([]);
   const [activeTab, setActiveTab] = useState<"ongoing" | "completed">(
     "ongoing"
   );
 
-  // --- Data Fetching Logic ---
+  // --- Fetch Data ---
   useEffect(() => {
     if (!userId) return;
 
     const fetchData = async () => {
       setLoading(true);
 
-      // 1. Fetch User Data (Name, Avatar, and Balance)
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("name, avatar_url, time_balance")
-        .eq("id", userId)
-        .single();
+      try {
+        // Fetch user info
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("name, avatar_url, time_balance")
+          .eq("id", userId)
+          .single();
 
-      if (!userError && userData) {
-        setUsername(userData.name ?? "User");
-        setAvatarUrl(userData.avatar_url ?? null);
-        setBalance(userData.time_balance ?? 2);
-      } else {
-        console.log("Error fetching user data:", userError?.message);
-      }
+        if (userData && !userError) {
+          setUsername(userData.name ?? "User");
+          setAvatarUrl(userData.avatar_url ?? null);
+          setBalance(userData.time_balance ?? 0);
+        }
 
-      // 2. Fetch Task Ledger Data (Completed)
-      const { data: ledgerData, error: ledgerError } = await supabase
-        .from("ledger")
-        .select(
-          `
-          id,
-          time_earned,
-          tasks (
-            id,
-            title,
-            status
-          )
-          `
-        )
-        .eq("user_id", userId)
-        // Only fetch tasks where time was actually earned (completed)
-        .gt("time_earned", 0);
+        // Fetch ongoing tasks
+        const { data: ongoingData, error: ongoingError } = await supabase
+          .from("tasks")
+          .select("id, title")
+          .eq("assigned_to", userId)
+          .neq("status", "Completed");
 
-      if (!ledgerError && ledgerData) {
-        const completed: TaskData[] = ledgerData.map((item: LedgerTask) => ({
-          id: item.tasks?.id ?? "",
-          details: item.tasks?.title ?? "Unknown Task",
-          timeEarned: formatHours(item.time_earned),
-        }));
+        if (ongoingData && !ongoingError) {
+          setOngoingTasks(
+            ongoingData.map((task) => ({
+              id: task.id,
+              details: task.title,
+              timeEarned: "N/A",
+            }))
+          );
+        }
 
-        setCompletedTasks(completed);
-      } else {
-        console.log(
-          "Error fetching completed ledger data:",
-          ledgerError?.message
-        );
-      }
+        // Fetch completed tasks
+        const { data: completedData, error: completedError } = await supabase
+          .from("tasks")
+          .select("id, title")
+          .eq("assigned_to", userId)
+          .eq("status", "Completed");
 
-      // 3. Fetch Ongoing Tasks (Tasks assigned to user but not completed)
-      const { data: ongoingTasksData, error: ongoingError } = await supabase
-        .from("tasks")
-        .select("id, title")
-        .eq("assigned_to", userId)
-        // Filter out tasks that are already completed
-        .neq("status", "Completed");
+        if (completedData && !completedError) {
+          // Optionally, fetch ledger info for time earned
+          const taskIds = completedData.map((t) => t.id);
+          const { data: ledgerData } = await supabase
+            .from("ledger")
+            .select("task_id, time_earned")
+            .in("task_id", taskIds);
 
-      if (!ongoingError && ongoingTasksData) {
-        const ongoing: TaskData[] = ongoingTasksData.map((task) => ({
-          id: task.id,
-          details: task.title,
-          // Placeholder for ongoing tasks
-          timeEarned: "N/A",
-        }));
-        setOngoingTasks(ongoing);
-      } else {
-        console.log("Error fetching ongoing tasks:", ongoingError?.message);
+          const completed: TaskData[] = completedData.map((task) => {
+            const ledger = ledgerData?.find((l) => l.task_id === task.id);
+            return {
+              id: task.id,
+              details: task.title,
+              timeEarned: ledger ? formatHours(ledger.time_earned) : "N/A",
+            };
+          });
+
+          setCompletedTasks(completed);
+        }
+      } catch (err) {
+        console.log("Error fetching dashboard data:", err);
       }
 
       setLoading(false);
@@ -216,33 +189,15 @@ export default function Dashboard() {
     fetchData();
   }, [userId]);
 
-  // --- Button Navigation Logic ---
-  const handleRequestHelp = () => {
-    // Navigate to app/(nested)/requests.tsx
-    router.push("/requests");
-  };
-  const handleTasksAvailable = () => {
-    // Navigate to app/(nested)/tasks-available.tsx
-    router.push("/tasks-available");
-  };
-  const handleMyRequests = () => {
-    router.push("/my-requests");
-  };
-  const handleReportTime = () => {
-    router.push("/report-time");
-  };
-
-  const handleTaskPress = (taskId: string) => {
+  // --- Navigation ---
+  const handleTaskPress = (taskId: string) =>
     router.push({ pathname: "/task/[id]", params: { id: taskId } });
-  };
 
-  // Determine avatar source
   const avatarSource =
     avatarUrl && avatarLoaded ? { uri: avatarUrl } : FALLBACK_AVATAR;
 
   return (
     <View style={styles.container}>
-      {/* Background: Linear Gradient and BlurView */}
       <LinearGradient
         colors={["#041b0c", "rgba(2,23,9,0.55)", "rgba(2,23,9,0.2)"]}
         start={{ x: 0.5, y: 0 }}
@@ -264,9 +219,8 @@ export default function Dashboard() {
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
-        {/* Main Header Row */}
+        {/* Header */}
         <View style={styles.mainHeaderRow}>
-          {/* Left side: Avatar and Title */}
           <View style={styles.headerContainer}>
             <Image
               source={avatarSource}
@@ -284,47 +238,43 @@ export default function Dashboard() {
               </Text>
             </View>
           </View>
-          {/* Right side: Mini Balance Card */}
           <MiniTimeBalanceCard balance={balance} />
         </View>
 
-        {/* Action Buttons Row */}
+        {/* Action Buttons */}
         <View style={styles.actionButtonRow}>
           <ActionButton
             iconName="plus-circle"
             label="Request Help"
-            onPress={handleRequestHelp}
+            onPress={() => router.push("/requests")}
             style="primary"
           />
           <ActionButton
             iconName="file-alt"
             label="Tasks Available"
-            onPress={handleTasksAvailable}
+            onPress={() => router.push("/tasks-available")}
             style="secondary"
           />
         </View>
-
-        {/* Second Action Buttons Row */}
         <View style={styles.actionButtonRow}>
           <ActionButton
             iconName="list-alt"
             label="My Requests"
-            onPress={handleMyRequests}
+            onPress={() => router.push("/my-requests")}
             style="tertiary"
           />
           <ActionButton
             iconName="clock"
             label="Report Time"
-            onPress={handleReportTime}
+            onPress={() => router.push("/report-time")}
             style="tertiary"
-            isRightButton={true}
+            isRightButton
           />
         </View>
 
         {/* Task Ledger */}
         <View style={styles.taskLedgerContainer}>
           <Text style={styles.taskLedgerTitle}>Task Ledger</Text>
-
           <View style={styles.ledgerCard}>
             {loading ? (
               <ActivityIndicator
@@ -333,8 +283,7 @@ export default function Dashboard() {
                 style={{ padding: 20 }}
               />
             ) : (
-              <View>
-                {/* Tab UI for Tasks */}
+              <>
                 <View style={styles.tabContainer}>
                   <TouchableOpacity
                     style={[
@@ -356,17 +305,17 @@ export default function Dashboard() {
                   </TouchableOpacity>
                 </View>
 
-                {/* Content based on active tab */}
                 <View style={styles.listContentContainer}>
                   <View style={styles.headerRow}>
                     <Text style={styles.headerTextLeft}>Task Details</Text>
                     <Text style={styles.headerTextRight}>Time</Text>
                   </View>
+
                   {activeTab === "ongoing" &&
                     (ongoingTasks.length > 0 ? (
                       ongoingTasks.map((task) => (
                         <TaskRow
-                          key={`ongoing-${task.id}`}
+                          key={task.id}
                           {...task}
                           onPress={() => handleTaskPress(task.id)}
                         />
@@ -376,11 +325,12 @@ export default function Dashboard() {
                         No ongoing tasks found.
                       </Text>
                     ))}
+
                   {activeTab === "completed" &&
                     (completedTasks.length > 0 ? (
                       completedTasks.map((task) => (
                         <TaskRow
-                          key={`completed-${task.id}`}
+                          key={task.id}
                           {...task}
                           onPress={() => handleTaskPress(task.id)}
                         />
@@ -391,12 +341,11 @@ export default function Dashboard() {
                       </Text>
                     ))}
                 </View>
-              </View>
+              </>
             )}
           </View>
         </View>
       </Animated.ScrollView>
-      {/* Note: The physical Nav Bar placeholder from the image is omitted here as the TabBar component handles the actual navigation bar */}
     </View>
   );
 }
@@ -411,7 +360,6 @@ const styles = StyleSheet.create({
     paddingBottom: 150,
   },
 
-  // --- Header Styles ---
   mainHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -420,11 +368,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     marginTop: 20,
   },
-  headerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1, // Allow this to take up space
-  },
+  headerContainer: { flexDirection: "row", alignItems: "center", flex: 1 },
   avatar: {
     width: 80,
     height: 80,
@@ -433,16 +377,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#9ec5acff",
   },
-  dashboardTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#ffffff",
-  },
-  dateText: {
-    fontSize: 16,
-    color: "#9ec5acff",
-    marginTop: 5,
-  },
+  dashboardTitle: { fontSize: 26, fontWeight: "700", color: "#ffffff" },
+  dateText: { fontSize: 16, color: "#9ec5acff", marginTop: 5 },
   miniBalanceCard: {
     paddingHorizontal: 15,
     paddingVertical: 8,
@@ -450,17 +386,9 @@ const styles = StyleSheet.create({
     marginTop: -75,
     alignItems: "center",
   },
-  miniBalanceLabel: {
-    color: "#ebf3efff",
-    fontSize: 12,
-  },
-  miniBalanceValue: {
-    color: "#aaffcbff",
-    fontSize: 19,
-    fontWeight: "700",
-  },
+  miniBalanceLabel: { color: "#ebf3efff", fontSize: 12 },
+  miniBalanceValue: { color: "#aaffcbff", fontSize: 19, fontWeight: "700" },
 
-  // --- Action Button Styles ---
   actionButtonRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -475,51 +403,20 @@ const styles = StyleSheet.create({
     height: BUTTON_HEIGHT,
     paddingHorizontal: 15,
   },
-  actionIcon: {
-    marginRight: 8,
-  },
-  primaryButton: {
-    backgroundColor: "#1d5e3aff",
-    flex: 1,
-    marginRight: 5,
-  },
-  primaryButtonText: {
-    color: "#ffffff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  secondaryButton: {
-    backgroundColor: "#9ec5acff",
-    flex: 1,
-    marginLeft: 5,
-  },
-  secondaryButtonText: {
-    color: "#1d5e3aff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  tertiaryButton: {
-    backgroundColor: "#9ec5acff",
-    flex: 1,
-  },
-  tertiaryButtonRight: {
-    marginLeft: 10,
-  },
-  tertiaryButtonText: {
-    color: "#041b0c",
-    fontWeight: "700",
-    fontSize: 16,
-  },
+  actionIcon: { marginRight: 8 },
+  primaryButton: { backgroundColor: "#1d5e3aff", flex: 1, marginRight: 5 },
+  primaryButtonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  secondaryButton: { backgroundColor: "#9ec5acff", flex: 1, marginLeft: 5 },
+  secondaryButtonText: { color: "#1d5e3aff", fontWeight: "600", fontSize: 16 },
+  tertiaryButton: { backgroundColor: "#9ec5acff", flex: 1 },
+  tertiaryButtonRight: { marginLeft: 10 },
+  tertiaryButtonText: { color: "#041b0c", fontWeight: "700", fontSize: 16 },
 
-  // --- Task Ledger Styles ---
-  taskLedgerContainer: {
-    width: "100%",
-    marginTop: 20,
-  },
+  taskLedgerContainer: { width: "100%", marginTop: 20 },
   taskLedgerTitle: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#ffffff",
+    color: "#fff",
     marginBottom: 15,
     alignSelf: "flex-start",
   },
@@ -528,9 +425,6 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 40,
     width: "100%",
-  },
-  sectionTitle: {
-    // This style is no longer used with the tab UI, but kept for potential future use
   },
   headerRow: {
     flexDirection: "row",
@@ -548,7 +442,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#b3d4bfff",
-    width: 100, // Match the width of the time value column
+    width: 100,
     textAlign: "right",
   },
   taskRow: {
@@ -561,18 +455,19 @@ const styles = StyleSheet.create({
   },
   taskDetails: {
     fontSize: 16,
-    color: "rgba(209, 172, 255, 0.8)", // Link color
+    color: "rgba(209, 172, 255, 0.8)",
     flex: 1,
     textDecorationLine: "underline",
   },
   timeEarned: {
     fontSize: 16,
-    color: "#ffffff",
+    color: "#fff",
     fontWeight: "600",
     textAlign: "right",
-    width: 100, // Fixed width for alignment
+    width: 100,
     flexShrink: 0,
   },
+
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "rgba(2, 23, 9, 0.65)",
@@ -584,10 +479,8 @@ const styles = StyleSheet.create({
   },
   tabButton: { flex: 1, paddingVertical: 12, alignItems: "center" },
   activeTab: { backgroundColor: "#9ec5acff" },
-  tabText: { color: "#ffffff", fontWeight: "600", fontSize: 16 },
-  listContentContainer: {
-    // Container for the list below the tabs
-  },
+  tabText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  listContentContainer: {},
   emptyText: {
     fontSize: 14,
     color: "#ffffffa0",

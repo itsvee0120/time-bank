@@ -1,4 +1,5 @@
 import { Session } from "@supabase/supabase-js";
+import * as Notifications from "expo-notifications";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "./supabase";
 
@@ -16,6 +17,15 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
+// Configure notification handler (foreground behavior)
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,36 +36,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (error) throw error;
       setSession(data.session);
     } catch (error) {
-      console.error("Error refreshing session:", error);
+      console.error("[AuthContext] Error refreshing session:", error);
       setSession(null);
     }
   };
 
   useEffect(() => {
-    // onAuthStateChange handles the initial session check and subsequent changes.
-    // This is the single source of truth for the user's auth state.
+    let userIdForCleanup: string | undefined;
+
+    // Single source of truth for auth state
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Handle different auth events
-      if (event === "SIGNED_IN") {
-        console.log("User signed in");
-        setSession(session);
-      } else if (event === "SIGNED_OUT") {
-        console.log("User signed out");
-        setSession(null);
-      } else if (event === "TOKEN_REFRESHED") {
-        console.log("Token refreshed");
-        setSession(session);
-      } else if (event === "USER_UPDATED") {
-        console.log("User updated");
-        setSession(session);
-      } else if (event === "INITIAL_SESSION") {
-        console.log("Initial session:", session ? "Found" : "None");
-        setSession(session);
+      console.log("[AuthContext] Auth event:", event);
+      setSession(session);
+      userIdForCleanup = session?.user.id;
+
+      // Clear push token on sign out
+      if (event === "SIGNED_OUT" && userIdForCleanup) {
+        console.log("[AuthContext] Clearing push token for signed out user");
+        await supabase
+          .from("users")
+          .update({ expo_push_token: null })
+          .eq("id", userIdForCleanup);
       }
 
-      // Set loading to false only after the initial session has been handled.
+      // Mark loading complete after initial session check
       setLoading(false);
     });
 

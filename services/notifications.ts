@@ -1,4 +1,3 @@
-// services/notifications.ts
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { supabase } from "./supabase";
@@ -6,7 +5,9 @@ import { supabase } from "./supabase";
 /**
  * Register device for push notifications and save token to Supabase
  */
-export async function registerForPushNotifications(userId?: string): Promise<string | null> {
+export async function registerForPushNotifications(
+  userId?: string
+): Promise<string | null> {
   try {
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
@@ -17,7 +18,8 @@ export async function registerForPushNotifications(userId?: string): Promise<str
       });
     }
 
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
     if (existingStatus !== "granted") {
@@ -26,7 +28,7 @@ export async function registerForPushNotifications(userId?: string): Promise<str
     }
 
     if (finalStatus !== "granted") {
-      alert("Enable notifications to stay updated!");
+      console.log("[Notifications] Permission not granted");
       return null;
     }
 
@@ -40,13 +42,18 @@ export async function registerForPushNotifications(userId?: string): Promise<str
         .eq("id", userId);
 
       if (error) {
-        console.error("[Notifications] Failed to save push token to Supabase:", error);
+        console.error("[Notifications] Failed to save push token:", error);
+      } else {
+        console.log("[Notifications] Token saved successfully");
       }
     }
 
     return token;
   } catch (error) {
-    console.error("[Notifications] Error registering for push notifications:", error);
+    console.error(
+      "[Notifications] Error registering for push notifications:",
+      error
+    );
     return null;
   }
 }
@@ -60,7 +67,10 @@ export async function sendPushNotification(
   body: string,
   data?: Record<string, any>
 ) {
-  if (!token) return;
+  if (!token) {
+    console.log("[Notifications] No token provided, skipping push notification");
+    return;
+  }
 
   const message = {
     to: token,
@@ -104,40 +114,74 @@ export async function scheduleLocalNotification(
     });
     console.log("[Notifications] Local notification scheduled:", title);
   } catch (error) {
-    console.error("[Notifications] Failed to schedule local notification:", error);
+    console.error(
+      "[Notifications] Failed to schedule local notification:",
+      error
+    );
   }
 }
 
 /**
  * Notify user about a task event (push + optional local notification)
+ * Respects user's notification preferences
  */
 export async function notifyTaskEvent(
   userId: string,
+  notificationType: "task_accepted" | "task_completed" | "daily_reminder",
   title: string,
   body: string,
   taskId?: string,
   localSecondsFromNow?: number
 ) {
   try {
+    // Fetch user with token AND notification preferences
     const { data: user, error } = await supabase
       .from("users")
-      .select("expo_push_token")
+      .select(
+        `
+        expo_push_token,
+        notifications_task_accepted,
+        notifications_task_completed,
+        notifications_daily_reminder
+      `
+      )
       .eq("id", userId)
       .single();
 
     if (error) {
-      console.error("[Notifications] Failed to fetch user token:", error);
+      console.error("[Notifications] Failed to fetch user:", error);
+      return;
+    }
+
+    // Check if user has this notification type enabled
+    const prefKey = `notifications_${notificationType}` as keyof typeof user;
+    const isEnabled = user?.[prefKey];
+
+    if (!isEnabled) {
+      console.log(
+        `[Notifications] User has ${notificationType} disabled, skipping`
+      );
       return;
     }
 
     const token = user?.expo_push_token;
 
+    // Send push notification if token exists
     if (token) {
-      await sendPushNotification(token, title, body, { taskId });
+      await sendPushNotification(token, title, body, {
+        taskId,
+        notificationType,
+      });
+    } else {
+      console.log("[Notifications] No push token found for user");
     }
 
+    // Schedule local notification if requested
     if (localSecondsFromNow) {
-      await scheduleLocalNotification(title, body, localSecondsFromNow, { taskId });
+      await scheduleLocalNotification(title, body, localSecondsFromNow, {
+        taskId,
+        notificationType,
+      });
     }
   } catch (error) {
     console.error("[Notifications] Error notifying task event:", error);

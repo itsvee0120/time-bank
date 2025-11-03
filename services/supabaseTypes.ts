@@ -146,6 +146,9 @@ export type Database = {
           description: string | null
           id: string
           location: string | null
+          reported_at: string | null
+          reported_by: string | null
+          reported_hours: number | null
           status: string
           time_offered: number
           timestamp: string
@@ -158,6 +161,9 @@ export type Database = {
           description?: string | null
           id?: string
           location?: string | null
+          reported_at?: string | null
+          reported_by?: string | null
+          reported_hours?: number | null
           status?: string
           time_offered: number
           timestamp: string
@@ -170,6 +176,9 @@ export type Database = {
           description?: string | null
           id?: string
           location?: string | null
+          reported_at?: string | null
+          reported_by?: string | null
+          reported_hours?: number | null
           status?: string
           time_offered?: number
           timestamp?: string
@@ -190,6 +199,13 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "tasks_reported_by_fkey"
+            columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
         ]
       }
       users: {
@@ -204,6 +220,9 @@ export type Database = {
           is_profile_complete: boolean
           location: string | null
           name: string
+          notifications_daily_reminder: boolean | null
+          notifications_task_accepted: boolean | null
+          notifications_task_completed: boolean | null
           skill_sets: string[] | null
           time_balance: number
         }
@@ -218,6 +237,9 @@ export type Database = {
           is_profile_complete?: boolean
           location?: string | null
           name: string
+          notifications_daily_reminder?: boolean | null
+          notifications_task_accepted?: boolean | null
+          notifications_task_completed?: boolean | null
           skill_sets?: string[] | null
           time_balance?: number
         }
@@ -232,6 +254,9 @@ export type Database = {
           is_profile_complete?: boolean
           location?: string | null
           name?: string
+          notifications_daily_reminder?: boolean | null
+          notifications_task_accepted?: boolean | null
+          notifications_task_completed?: boolean | null
           skill_sets?: string[] | null
           time_balance?: number
         }
@@ -276,6 +301,10 @@ export type Database = {
     Functions: {
       add_to_balance: {
         Args: { time_to_add: number; user_id_input: string }
+        Returns: undefined
+      }
+      create_user_profile: {
+        Args: { p_email: string; p_id: string; p_name: string }
         Returns: undefined
       }
       report_time: {

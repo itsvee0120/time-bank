@@ -73,6 +73,13 @@ export type Database = {
             foreignKeyName: "ledger_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
+            referencedRelation: "detailed_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
             referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
@@ -112,6 +119,13 @@ export type Database = {
             foreignKeyName: "task_attachments_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
+            referencedRelation: "detailed_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_attachments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
             referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
@@ -132,6 +146,9 @@ export type Database = {
           description: string | null
           id: string
           location: string | null
+          reported_at: string | null
+          reported_by: string | null
+          reported_hours: number | null
           status: string
           time_offered: number
           timestamp: string
@@ -144,6 +161,9 @@ export type Database = {
           description?: string | null
           id?: string
           location?: string | null
+          reported_at?: string | null
+          reported_by?: string | null
+          reported_hours?: number | null
           status?: string
           time_offered: number
           timestamp: string
@@ -156,6 +176,9 @@ export type Database = {
           description?: string | null
           id?: string
           location?: string | null
+          reported_at?: string | null
+          reported_by?: string | null
+          reported_hours?: number | null
           status?: string
           time_offered?: number
           timestamp?: string
@@ -176,6 +199,13 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "tasks_reported_by_fkey"
+            columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
         ]
       }
       users: {
@@ -185,10 +215,14 @@ export type Database = {
           created_at: string
           description: string | null
           email: string | null
+          expo_push_token: string | null
           id: string
           is_profile_complete: boolean
           location: string | null
           name: string
+          notifications_daily_reminder: boolean | null
+          notifications_task_accepted: boolean | null
+          notifications_task_completed: boolean | null
           skill_sets: string[] | null
           time_balance: number
         }
@@ -198,10 +232,14 @@ export type Database = {
           created_at?: string
           description?: string | null
           email?: string | null
+          expo_push_token?: string | null
           id: string
           is_profile_complete?: boolean
           location?: string | null
           name: string
+          notifications_daily_reminder?: boolean | null
+          notifications_task_accepted?: boolean | null
+          notifications_task_completed?: boolean | null
           skill_sets?: string[] | null
           time_balance?: number
         }
@@ -211,10 +249,14 @@ export type Database = {
           created_at?: string
           description?: string | null
           email?: string | null
+          expo_push_token?: string | null
           id?: string
           is_profile_complete?: boolean
           location?: string | null
           name?: string
+          notifications_daily_reminder?: boolean | null
+          notifications_task_accepted?: boolean | null
+          notifications_task_completed?: boolean | null
           skill_sets?: string[] | null
           time_balance?: number
         }
@@ -222,11 +264,47 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      detailed_tasks: {
+        Row: {
+          assigned_to: string | null
+          availability: string | null
+          created_by: string | null
+          creator_avatar_url: string | null
+          creator_name: string | null
+          description: string | null
+          id: string | null
+          location: string | null
+          status: string | null
+          task_attachments: Json | null
+          time_offered: number | null
+          timestamp: string | null
+          title: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       add_to_balance: {
         Args: { time_to_add: number; user_id_input: string }
+        Returns: undefined
+      }
+      create_user_profile: {
+        Args: { p_email: string; p_id: string; p_name: string }
         Returns: undefined
       }
       report_time: {

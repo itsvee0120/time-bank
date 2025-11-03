@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import "dotenv/config";
 
 export default ({ config }) => ({
   ...config,
@@ -27,7 +27,7 @@ export default ({ config }) => ({
     },
     package: "com.nviol.houreum",
     permissions: ["NOTIFICATIONS"],
-    googleServicesFile: process.env.GOOGLE_SERVICES_JSON, // ✅ JS allowed here
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
   },
   web: {
     output: "static",

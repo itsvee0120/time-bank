@@ -7,9 +7,7 @@ import { useRouter } from "expo-router";
 import { supabase } from "../services/supabase";
 import { registerForPushNotifications } from "../services/notifications";
 
-// ----------------------
 // Linking configuration
-// ----------------------
 export const linking = {
   prefixes: [Linking.createURL("/"), "timebank://"],
   config: {
@@ -29,23 +27,16 @@ export const linking = {
   },
 };
 
-// ----------------------
-// Foreground notification handler
-// ----------------------
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
 export default function RootLayout() {
   const router = useRouter();
 
   useEffect(() => {
+    let authSubscription: { unsubscribe: () => void } | null = null;
+
     const initNotifications = async () => {
       try {
+        console.log("[RootLayout] Initializing notifications...");
+
         // Get the currently logged-in user
         const {
           data: { user },
@@ -53,8 +44,29 @@ export default function RootLayout() {
 
         // Register device for push notifications if logged in
         if (user?.id) {
+          console.log(
+            "[RootLayout] User logged in, registering for notifications"
+          );
           await registerForPushNotifications(user.id);
+        } else {
+          console.log("[RootLayout] No user logged in yet");
         }
+
+        // Listen for auth state changes to register token when user signs in
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log("[RootLayout] Auth event:", event);
+
+          if (event === "SIGNED_IN" && session?.user.id) {
+            console.log(
+              "[RootLayout] User signed in, registering for notifications"
+            );
+            await registerForPushNotifications(session.user.id);
+          }
+        });
+
+        authSubscription = subscription;
       } catch (error) {
         console.error(
           "[RootLayout] Failed to initialize notifications:",
@@ -66,11 +78,13 @@ export default function RootLayout() {
     initNotifications();
 
     // Handle taps on notifications (remote or local)
-    const subscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
+    const notificationSubscription =
+      Notifications.addNotificationResponseReceivedListener((response) => {
         const data = response.notification.request.content.data as {
           taskId?: string;
+          notificationType?: string;
         };
+
         console.log("[RootLayout] Notification tapped:", data);
 
         if (data?.taskId) {
@@ -78,10 +92,12 @@ export default function RootLayout() {
         } else {
           router.push("/(app)/home");
         }
-      }
-    );
+      });
 
-    return () => subscription.remove();
+    return () => {
+      notificationSubscription.remove();
+      authSubscription?.unsubscribe();
+    };
   }, [router]);
 
   return (
